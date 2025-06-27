@@ -12,10 +12,13 @@ Generate sight-reading exercises using AI.
 - Sheet music (MusicXML) → MIDI → Tokens → [train model]
 - Generated tokens → MIDI → Sheet music (MusicXML or PDF)
 
+-musescore.exe
+-audiveris.exe
+
 ## Quick Start
 1. Create virtualenv
 2. Install dependencies
-3. Run sample tokenizer script
+4. Run sample tokenizer script
 
 ## To Do
 - [ ] Add example MIDI files

@@ -1,0 +1,14 @@
+mxl_in_to_musicxml_in_2025-06-27_12-16-24.log
+ c:\Users\marlo\sightreading_ai\data_pipeline\data\mxl_in -> c:\Users\marlo\sightreading_ai\data_pipeline\data\musicxml_in
+
+
+[SKIPPED] 2025-06-27 12:16:24.084895 - Input: C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.mxl; 
+Output: C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.musicxml already exists and shall not be overwritten
+[SKIPPED] 2025-06-27 12:16:24.084895 - Input: C._Schfer_A._Sartorio_Op._45_-_Volume_I_-_Sight_Reading_Exercises_Piano.mxl; 
+Output: C._Schfer_A._Sartorio_Op._45_-_Volume_I_-_Sight_Reading_Exercises_Piano.musicxml already exists and shall not be overwritten
+[SKIPPED] 2025-06-27 12:16:24.084895 - Input: Sight_Reading_Book.mxl; 
+Output: Sight_Reading_Book.musicxml already exists and shall not be overwritten
+[SKIPPED] 2025-06-27 12:16:24.084895 - Input: Sight_Reading_Exercises_2.mxl; 
+Output: Sight_Reading_Exercises_2.musicxml already exists and shall not be overwritten
+[SKIPPED] 2025-06-27 12:16:24.084895 - Input: Sight_Reading_Exercise_for_Piano_Preparation_8.mxl; 
+Output: Sight_Reading_Exercise_for_Piano_Preparation_8.musicxml already exists and shall not be overwritten
