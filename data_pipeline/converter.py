@@ -1,6 +1,6 @@
 import os, subprocess, datetime, warnings, music21, logging
 from typing import *
-from pipeline_stage import Pipeline_stage, construct_pipeline
+from data_pipeline.pipeline import *
 from file import *
 
 
@@ -11,9 +11,10 @@ class Converter():
     """
     own_path = os.path.abspath(__file__)
     own_directory = os.path.dirname(own_path)
-    pipeline_stages = construct_pipeline()
+    #pipeline_stages = construct_pipeline()
     
-    def __init__(self, folders: dict, musescore_path: str=r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_path: str=r"C:\Program Files\Audiveris\Audiveris.exe", data_folder_path: str=f"{own_directory}\\data",logs_folder_path: str= f"{own_directory}\\logs"):
+    
+    def __init__(self, pipeline: Pipeline, data_folder_path: str=f"{own_directory}\\data", logs_folder_path: str= f"{own_directory}\\logs", musescore_path: str=r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_path: str=r"C:\Program Files\Audiveris\Audiveris.exe", ):
         # environment.set('musescoreDirectPNGPath', musescore_path)
         self.musescore_path = musescore_path
         self.audiveris_path = audiveris_path
@@ -22,7 +23,8 @@ class Converter():
         os.makedirs(self.logs_folder_path, exist_ok=True)
         os.makedirs(self.data_folder_path, exist_ok=True)
         
-        self.assign_folders(folders)    
+        self.pipeline = pipeline
+        self.assign_folders()    
         self.conversion_map = {
         (".pdf", ".musicxml"): self.pdf_to_musicxml,
         (".mxl", ".musicxml"): self.mxl_to_musicxml,
@@ -31,36 +33,24 @@ class Converter():
 
         self.log_folder_map = {}
 
-        for extention_tuple, function in self.conversion_map.items():
-            start, target = extention_tuple
-            path = os.path.join(self.logs_folder_path, f"{start[1:]}_to_{target[1:]}")
+        for function in self.conversion_map.values():
+            path = os.path.join(self.logs_folder_path, f"{function}")
             os.makedirs(path, exist_ok=True)
             self.log_folder_map[function] = path
 
-        
-    def assign_folders(self, folders: dict) -> None:
-        """_summary_
 
-        Args:
-            folders (dict): _description_
+    def acceptable_pipeline(self):
+        
 
-        Raises:
-            ValueError: _description_
-        """
-        # return dict that maps values that are mapped to by at least to keys to all those keys
-        not_uniques = {value: (temp)  for value in folders.values() if len(temp := [key for key in folders if folders[key] == value]) >= 2}
-        
-        missing = [stage.name for stage in Converter.pipeline_stages.values() if stage.name not in folders]
-        
-        if not_uniques:
-            raise ValueError(f"Each stage must have a unique folder name. Following folder names are shared by the given stages {not_uniques}")
-        elif missing:
-            raise ValueError(f"Missing folders for stages: {', '.join(missing)}")
-        else:
-            for stage_name, folder in folders.items():
-                path = os.path.join(self.data_folder_path, folder)
-                Converter.pipeline_stages[stage_name].folder_path = path
-                os.makedirs(path, exist_ok=True)
+        print("Pipeline accepted, all conversions can be performed by converter.")
+
+
+
+    def assign_folders(self) -> None:
+        for stage in self.pipeline:
+            path = os.path.join(self.data_folder_path, folder)
+            self.pipeline[stage_name].folder_path = path
+            os.makedirs(path, exist_ok=True)
 
 
     def find_conversion_route(self, start_stage: Pipeline_stage, target_stage: Pipeline_stage) -> List[Callable]:
@@ -149,7 +139,11 @@ class Converter():
         """
         subprocess.run([self.musescore_path, input_file.path, '-o', output_file.path], check=True)
 
-
+    conversion_map = {
+            (".pdf", ".musicxml"): pdf_to_musicxml,
+            (".mxl", ".musicxml"): mxl_to_musicxml,
+            (".musicxml", ".pdf"): musicxml_to_pdf,
+            }
 
 if __name__ == "__main__":
     # Example usage
