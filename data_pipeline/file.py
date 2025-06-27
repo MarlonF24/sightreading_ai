@@ -8,7 +8,8 @@ class File():
 
     def __post_init__(self):
         self.name = os.path.basename(self.path)
-        self.extention = os.path.splitext(self.name)
+        self.folder = os.path.dirname(self.path)
+        self.extension = os.path.splitext(self.name)[1]
 
 @dataclass
 class ConversionOutcome:

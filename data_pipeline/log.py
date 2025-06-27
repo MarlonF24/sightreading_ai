@@ -1,6 +1,6 @@
 from file import File, ConversionOutcome
 from pipeline import *
-import datetime
+import datetime, os
 
 
 class Log(File) :
