@@ -45,11 +45,11 @@ Rhythm Values = Crotchet / Minim only</credit-words>
     <score-part id="P1">
       <part-name>Piano</part-name>
       <part-abbreviation>Pno.</part-abbreviation>
-      <score-instrument id="I34ef980c33e695c15c3c6ae7196a90e2">
+      <score-instrument id="I963ada04524b3c6d8473d5098f905071">
         <instrument-name>Piano</instrument-name>
         <instrument-abbreviation>Pno</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I34ef980c33e695c15c3c6ae7196a90e2">
+      <midi-instrument id="I963ada04524b3c6d8473d5098f905071">
         <midi-channel>1</midi-channel>
         <midi-program>1</midi-program>
       </midi-instrument>

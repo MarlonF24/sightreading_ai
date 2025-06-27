@@ -14,15 +14,6 @@ class Converter():
     pipeline_stages = construct_pipeline()
     
     def __init__(self, folders: dict, musescore_path: str=r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_path: str=r"C:\Program Files\Audiveris\Audiveris.exe", data_folder_path: str=f"{own_directory}\\data",logs_folder_path: str= f"{own_directory}\\logs"):
-        """_summary_
-
-        Args:
-            folders (dict): maps each stage name to a desired folder NAME (not path)
-            musescore_path (_type_, optional): _description_. Defaults to r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe'.
-            audiveris_path (_type_, optional): _description_. Defaults to r"C:\Program Files\Audiveris\Audiveris.exe".
-            data_folder_path (str, optional): _description_. Defaults to f"{own_directory}\data".
-            logs_folder_path (str, optional): _description_. Defaults to f"{own_directory}\logs".
-        """
         # environment.set('musescoreDirectPNGPath', musescore_path)
         self.musescore_path = musescore_path
         self.audiveris_path = audiveris_path
@@ -103,28 +94,33 @@ class Converter():
         if start_stage.child != target_stage:
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
 
-        with Log(start_stage, target_stage, self.log_folder_map[conversion_function]) as log:
-            for file_name in os.listdir(start_stage.folder_path):
-                if file_name.endswith(start_stage.extention):            
-                    input_file = File(os.path.join(start_stage.folder_path, file_name))
-                    
-                    output_file = File(os.path.join(target_stage.folder_path, os.path.splitext(file_name)[0] + target_stage.extention))
+        log = Log(start_stage, target_stage, self.log_folder_map[conversion_function])
+        
+        for file_name in os.listdir(start_stage.folder_path):
+            if file_name.endswith(start_stage.extention):            
+                input_file = File(os.path.join(start_stage.folder_path, file_name))
+                
+                output_file = File(os.path.join(target_stage.folder_path, os.path.splitext(file_name)[0] + target_stage.extention))
 
-                    self.logged_single_file_conversion(conversion_function, input_file, output_file, log, overwrite)
-                        
+                self.logged_single_file_conversion(conversion_function, input_file, output_file, log, overwrite)
+        
+        log.commit()
+
                 
     def logged_single_file_conversion(self, func, input_file: File, output_file: File, log: Log, overwrite: bool):
+        log.num_attempted += 1
+        
         if os.path.exists(output_file.path) and not overwrite:
             log.skip(input_file, output_file)
         else:
             try: 
                 outcome = func(input_file, output_file)
-
                 log.log(outcome)
-                
+
             except Exception as e:
-                input_file_name = log.halt(input_file, e)
-                raise RuntimeError(f"Critical failure since conversion of {input_file_name}. All upcoming conversion aborted\n" + str(e))
+                log.halt(input_file, e)
+                log.commit()
+                raise RuntimeError(f"Critical failure since conversion of {input_file.name}. All upcoming conversion aborted\n" + str(e))
     
 
     def mxl_to_musicxml(self, input_file: File, output_file: File) -> ConversionOutcome:
@@ -167,4 +163,4 @@ if __name__ == "__main__":
     print(os.getcwd())
     pipeline = Converter.pipeline_stages
     converter = Converter(folders)
-    converter.multi_stage_conversion(pipeline["mxl_in"], pipeline["musicxml_in"], overwrite=False)
+    converter.multi_stage_conversion(pipeline["mxl_in"], pipeline["musicxml_in"], overwrite=True)
