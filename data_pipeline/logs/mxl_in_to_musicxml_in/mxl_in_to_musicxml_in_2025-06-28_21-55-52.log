@@ -1,0 +1,15 @@
+mxl_in_to_musicxml_in_2025-06-28_21-55-52.log
+ c:\Users\marlo\sightreading_ai\data_pipeline\data\mxl_in -> c:\Users\marlo\sightreading_ai\data_pipeline\data\mxl_in
+
+num_attempted: 5
+share_successful: 100.00%
+share_skipped: 0.00%
+share_errors: 0.00%
+share_warned_from_successful: 0.00%
+has_halted: False
+
+[SUCCESS] 2025-06-28 21:56:00.862278 - Input: C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.mxl; Output: C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.musicxml:
+[SUCCESS] 2025-06-28 21:56:11.112937 - Input: C._Schfer_A._Sartorio_Op._45_-_Volume_I_-_Sight_Reading_Exercises_Piano.mxl; Output: C._Schfer_A._Sartorio_Op._45_-_Volume_I_-_Sight_Reading_Exercises_Piano.musicxml:
+[SUCCESS] 2025-06-28 21:56:11.612670 - Input: Sight_Reading_Book.mxl; Output: Sight_Reading_Book.musicxml:
+[SUCCESS] 2025-06-28 21:56:34.738378 - Input: Sight_Reading_Exercises_2.mxl; Output: Sight_Reading_Exercises_2.musicxml:
+[SUCCESS] 2025-06-28 21:56:45.263111 - Input: Sight_Reading_Exercise_for_Piano_Preparation_8.mxl; Output: Sight_Reading_Exercise_for_Piano_Preparation_8.musicxml:
