@@ -1,8 +1,9 @@
-import os, subprocess, datetime, warnings, music21, logging
+import os
 from typing import *
-from data_pipeline.pipeline import *
+from pipeline import *
 from file import *
 from log import Log
+from conversion_functions import ConversionFunction
 
 
 class Converter():
@@ -10,12 +11,11 @@ class Converter():
     A class to handle the conversion of files between .pdf, .mxl, .musicxml, .midi, tokens.
     It uses MuseScore for the conversion process.
     """
-    own_path = os.path.abspath(__file__)
-    own_directory = os.path.dirname(own_path)
-    #pipeline_stages = construct_pipeline()
+    own_path: Path = os.path.abspath(__file__)
+    own_directory: Path = os.path.dirname(own_path)
     
     
-    def __init__(self, pipeline: Pipeline, data_folder_path: str=f"{own_directory}\\data", logs_folder_path: str= f"{own_directory}\\logs"):
+    def __init__(self, pipeline: Pipeline, data_folder_path: Path=f"{own_directory}\\data", logs_folder_path: Path= f"{own_directory}\\logs") -> None:
         # environment.set('musescoreDirectPNGPath', musescore_path)
         self.logs_folder_path = logs_folder_path
         self.data_folder_path = data_folder_path
@@ -28,26 +28,27 @@ class Converter():
 
 
     def assign_log_folders(self) -> None:
-        self.log_folder_map: dict[(Pipeline_stage, Pipeline_stage), str] = {}
-        for stage, children in self.pipeline.graph.items():
-            for child in children:
-                path = os.path.join(self.logs_folder_path)
+        self.log_folder_map: dict[Tuple[PipelineStage, PipelineStage], Path] = {}
+        for stage in self.pipeline:
+            for child in stage.children:
+                path = os.path.join(self.logs_folder_path, f"{stage.name}_to_{child.name}")
                 self.log_folder_map[(stage, child)] = path
                 os.makedirs(path, exist_ok=True)
 
 
     def assign_data_folders(self) -> None:
-        self.data_folder_map: dict[Pipeline_stage, str] = {}
-        for stage in self.pipeline.stages:
+        self.data_folder_map: dict[PipelineStage, Path] = {}
+        for stage in self.pipeline:
             path = os.path.join(self.data_folder_path, stage.name)
-            stage.folder_path = path
             self.data_folder_map[stage] = path
             os.makedirs(path, exist_ok=True)
 
 
-    def multi_stage_conversion(self, start_stage: Pipeline_stage, target_stage: Pipeline_stage, overwrite: bool = True) -> None:
+    def multi_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool = True) -> None:
                      
-        route = self.find_conversion_route(start_stage, target_stage)
+        route = self.pipeline.shortest_conversion_route(start_stage, target_stage)
+
+        print(f"Converting from {start_stage.name} to {target_stage.name} via {route}...\n")
 
         current_start_stage = start_stage
 
@@ -57,52 +58,43 @@ class Converter():
             
 
 
-    def single_stage_conversion(self, start_stage: Pipeline_stage, target_stage: Pipeline_stage, overwrite: bool=True) -> None: 
+    def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True) -> None: 
         if target_stage not in start_stage.children:
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
 
+        print(f"Converting {start_stage.name} to {target_stage.name}...\n")
 
         conversion_function = start_stage.children[target_stage]
         
-        log = Log(start_stage, target_stage, self.log_folder_map[(start_stage, target_stage)])
+        log = Log(start_stage, target_stage, self.log_folder_map[(start_stage, target_stage)], self.data_folder_map[start_stage], self.data_folder_map[target_stage])
         
-        for file_name in os.listdir(start_stage.folder_path):
+        for file_name in os.listdir(self.data_folder_map[start_stage]):
             if file_name.endswith(start_stage.extension):            
-                input_file = File(os.path.join(start_stage.folder_path, file_name))
+                input_file = File(os.path.join(self.data_folder_map[start_stage], file_name))
                 
-                output_file = File(os.path.join(target_stage.folder_path, os.path.splitext(file_name)[0] + target_stage.extension))
+                output_file = File(os.path.join(self.data_folder_map[target_stage], os.path.splitext(file_name)[0] + target_stage.extension))
+                try:
+                    self.logged_single_file_conversion(conversion_function, input_file, output_file, log, overwrite)
+                except Log.HaltError as e:
+                    raise RuntimeError(f"{start_stage.name} to {target_stage.name} conversion halted. Following conversions aborted.\nHalt Error: {e}")
 
-                self.logged_single_file_conversion(conversion_function, input_file, output_file, log, overwrite)
-        
         log.commit()
+        
+        print(f"Conversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.name} in {log.folder}.\n")
 
                 
-    def logged_single_file_conversion(self, func, input_file: File, output_file: File, log: Log, overwrite: bool):
+    def logged_single_file_conversion(self, conversion_function: ConversionFunction, input_file: File, output_file: File, log: Log, overwrite: bool):
         log.num_attempted += 1
         
         if os.path.exists(output_file.path) and not overwrite:
             log.skip(input_file, output_file)
         else:
-            try: 
-                outcome = func(input_file, output_file)
-                log.log(outcome)
-
-            except Exception as e:
-                log.halt(input_file, e)
-                log.commit()
-                raise RuntimeError(f"Critical failure since conversion of {input_file.name}. All upcoming conversion aborted\n" + str(e))
+            outcome = conversion_function(input_file, output_file)
+            log.log(outcome)
 
 
 if __name__ == "__main__":
     # Example usage
-    folders = {
-        "pdf_in": "pdf_in",
-        "mxl_in": "mxl_in",
-        "musicxml_in": "musicxml_in",
-        "midi_in": "midi_in",
-        "tokens": "tokens",
-    }
-    print(os.getcwd())
-    pipeline = Converter.pipeline_stages
-    converter = Converter(folders)
+    pipeline = construct_music_pipeline()
+    converter = Converter(pipeline)
     converter.multi_stage_conversion(pipeline["mxl_in"], pipeline["musicxml_in"], overwrite=True)

@@ -1,26 +1,30 @@
-from file import File, ConversionOutcome
+from file import *
 from pipeline import *
 import datetime, os
 
 
-class Log(File) :
-    
 
-    def __init__(self, start_stage: Pipeline_stage, target_stage: Pipeline_stage, log_folder):
-        super().__init__(os.path.join(log_folder, f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"))
-        self.start_stage: Pipeline_stage = start_stage
-        self.target_stage: Pipeline_stage = target_stage
-        self.text: List[str] = [self.name + f"\n {self.start_stage.folder_path} -> {self.target_stage.folder_path}" + 2 * "\n"]
+class Log(File) :
+    class HaltError(Exception):
+        pass
+
+    def __init__(self, start_stage: PipelineStage, target_stage: PipelineStage, log_folder_path: Path, start_folder_path: Path, target_folder_path: Path) -> None:
+        super().__init__(os.path.join(log_folder_path, f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"))
+        self.start_stage: PipelineStage = start_stage
+        self.target_stage: PipelineStage = target_stage
+        self.start_stage_folder_path: Path = start_folder_path
+        self.target_stage_folder_path: Path = target_folder_path
+        self.text: List[str] = [self.name + f"\n {start_folder_path} -> {start_folder_path}" + 2 * "\n"]
         
         self.num_attempted: int = 0
-        self.num_skipped: int = 0
+        self.num_skipped: int = 0 
         self.num_successful: int = 0 
         self.num_errors: int = 0
         self.num_warned_successful: int = 0
         self.has_halted: bool = False
 
 
-    def skip(self, input_file: File, output_file: File, reason: str = None) -> None:
+    def skip(self, input_file: File, output_file: File, reason: str = "") -> None:
         self.num_skipped += 1
         if reason is None:
             reason = f"Output: {output_file.name} already exists and shall not be overwritten\n"
@@ -45,12 +49,11 @@ class Log(File) :
                 self.text.append(f"[ERROR] {datetime.datetime.now()} - Input: {outcome.input_file.name}\n:" + 
                                  f"         Error: {outcome.error_message}\n")
             else:
-                raise Exception(outcome.error_message)
-    
-    def halt(self, input_file: File, error_message) -> None:
-        self.has_halted = True
-        self.text.append(f"[HALT] {datetime.datetime.now()} - ON {input_file.name}\n"+ 
-                                 f"         Error: {error_message}\n")
+                self.has_halted = True
+                self.text.append(f"[HALT] {datetime.datetime.now()} - ON {outcome.input_file.name}\n"+ 
+                                        f"         Error: {outcome.error_message}\n")
+                self.commit()
+                raise Log.HaltError(f"Critical failure since conversion of {outcome.input_file.name}. All upcoming conversions aborted.\n" + outcome.error_message)
     
     @property
     def stats(self):

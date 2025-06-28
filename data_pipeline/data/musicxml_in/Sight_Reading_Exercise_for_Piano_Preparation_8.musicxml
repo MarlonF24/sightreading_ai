@@ -199,11 +199,11 @@
     <score-part id="P1">
       <part-name>Piano</part-name>
       <part-abbreviation>Pno.</part-abbreviation>
-      <score-instrument id="I677bebc7f2ac253cac9b705a73384deb">
+      <score-instrument id="I1be0caaff984787172bd392d75d793f9">
         <instrument-name>Piano</instrument-name>
         <instrument-abbreviation>Pno</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I677bebc7f2ac253cac9b705a73384deb">
+      <midi-instrument id="I1be0caaff984787172bd392d75d793f9">
         <midi-channel>1</midi-channel>
         <midi-program>1</midi-program>
       </midi-instrument>

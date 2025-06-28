@@ -24,3 +24,5 @@ Generate sight-reading exercises using AI.
 - [ ] Add example MIDI files
 - [ ] Write tokenizer to convert to tokens
 - [ ] Try first model generation
+
+![alt text](image.png)
