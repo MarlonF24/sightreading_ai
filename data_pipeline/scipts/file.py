@@ -5,15 +5,22 @@ import  os
 Path = str
 Extension = str
 
-
 @dataclass
-class File():
+class Storable():
     path: Path
 
     def __post_init__(self) -> None:
         self.name: str = os.path.basename(self.path)
-        self.folder: Path = os.path.dirname(self.path)
+        
+
+@dataclass
+class File(Storable):
+
+    def __post_init__(self) -> None:
+        self.folder_path: Path = os.path.dirname(self.path)
         self.extension: Extension = os.path.splitext(self.name)[1]
+
+
 
 @dataclass
 class ConversionOutcome():

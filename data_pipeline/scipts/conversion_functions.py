@@ -1,5 +1,5 @@
 from file import *
-import warnings, music21, subprocess
+import warnings, music21, subprocess, os
 from typing import *
 
 ConversionFunction = Callable[[File, File], ConversionOutcome]
@@ -11,7 +11,8 @@ class GenericConverter:
         input_file: File, 
         output_file: File, 
         command: List[str], 
-        interpreter: Callable[[subprocess.CompletedProcess, File, File], ConversionOutcome]
+        interpreter: Callable[[subprocess.CompletedProcess, File, File], ConversionOutcome],
+        clean_up: Optional[Callable[[File, File], None]] = None
         ) -> ConversionOutcome: 
         try:
             result = subprocess.run(command, capture_output=True, text=True)
@@ -24,6 +25,9 @@ class GenericConverter:
                 error_message=f"Subprocess exception: {e}",
                 go_on=False
             )
+        finally:
+            if clean_up:
+                clean_up(input_file, output_file)  # clean up after conversion
 
     @staticmethod
     def generic_music21_conversion(
@@ -72,13 +76,13 @@ def mxl_to_musicxml() -> ConversionFunction:
 
     return func
     
-def pdf_to_musicxml(audiveris_path: Path) -> ConversionFunction:
+def pdf_to_mxl(audiveris_path: Path, do_clean_up: bool = True) -> ConversionFunction:
     def interpreter(result: subprocess.CompletedProcess[str], input_file: File, output_file: File) -> ConversionOutcome:
         stderr = result.stderr.strip()
         stdout = result.stdout.strip()
 
         if result.returncode == 0:
-            warnings = tuple(stderr) if "WARN" in stderr else ()
+            warnings = (stderr,) if "WARN" in stderr else ()
             return ConversionOutcome(input_file=input_file, output_file=output_file, successful=True, warning_messages=warnings, go_on=True)
         
         if "FATAL" in stderr:
@@ -86,9 +90,17 @@ def pdf_to_musicxml(audiveris_path: Path) -> ConversionFunction:
         
         return ConversionOutcome(input_file=input_file, output_file=output_file, successful=False, error_message=stderr, go_on=True)
     
+    def clean_up(input_file: File, output_file: File) -> None:
+        for root, _, files in os.walk(output_file.folder_path, topdown=False):
+            for file in files:
+                if not file.endswith('.mxl'):
+                    os.remove(os.path.join(root, file))
+                    
+
     def func(input_file: File, output_file: File) -> ConversionOutcome:
-        command = [audiveris_path, "-batch", "-export", input_file.path]
-        return GenericConverter.generic_subprocess_conversion(input_file, output_file, command, interpreter)
+        command = [audiveris_path,"-batch","-export", "-output", output_file.folder_path, "--", input_file.path]
+
+        return GenericConverter.generic_subprocess_conversion(input_file, output_file, command, interpreter, clean_up=clean_up if do_clean_up else None)
 
     return func          
 

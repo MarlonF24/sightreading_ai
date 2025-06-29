@@ -139,7 +139,7 @@ def construct_music_pipeline(musescore_path: str=r'C:\Program Files\MuseScore 4\
     midi_in = PipelineStage("midi_in",".midi", {})
     musicxml_in = PipelineStage("musicxml_in" , ".musicxml", {})
     mxl_in = PipelineStage("mxl_in", ".mxl", {musicxml_in: conversion_functions.mxl_to_musicxml()})
-    pdf_in = PipelineStage("pdf_in", ".pdf", {musicxml_in: conversion_functions.pdf_to_musicxml(audiveris_path=audiveris_path)})
+    pdf_in = PipelineStage("pdf_in", ".pdf", {mxl_in: conversion_functions.pdf_to_mxl(audiveris_path=audiveris_path)})
     return Pipeline(tokens, midi_in, musicxml_in, mxl_in, pdf_in)
 
 if __name__ == "__main__":
