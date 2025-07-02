@@ -1,9 +1,9 @@
-from __future__ import annotations
 import os, datetime
+from __future__ import annotations
 from typing import *
 from pipeline import *
 from pathlib import Path
-from conversion_functions import SingleFileConversionFunction, BatchConversionFunction, FilePath, FolderPath, ConversionOutcome
+from conversion_func_infrastructure import *
 
 
 class Converter():
@@ -127,48 +127,61 @@ class Log():
     def index(self) -> str:
         return f"[{self.num_attempted}/{self.num_total_files}]"
 
-     
+    def log_skip(self, outcome: ConversionOutcome) -> None:
+        self.num_skipped += 1
+        
+        if not outcome.error_message:
+            reason = f"Output: {f"{outcome.output_files[0].name} already exists" if len(outcome.output_files) == 1 else f"Files {outcome.output_files[0].name}... already exist"} and shall not be overwritten\n"
+
+        self.text.append(f"{self.index} [SKIPPED] {datetime.datetime.now()} - Input: {outcome.input_file.name}; \n" + reason)
+        
+        print(f"{self.index} [SKIPPED]", end="\r")
+
+    def log_success(self, outcome: ConversionOutcome) -> None:
+        self.num_successful += 1
+
+        self.text.append(f"{self.index} [SUCCESS] {datetime.datetime.now()} - Input: {outcome.input_file.name}; Output: {outcome.output_files[0].name if len(outcome.output_files) == 1 else f"{len(outcome.output_files)} Files ({outcome.output_files[0].name})..."}\n") 
+    
+        if outcome.warning_messages:
+            self.num_warned_successful += 1
+            for warning_message in outcome.warning_messages:
+                self.text.append(f"\t[WARNING] {warning_message}\n")
+        
+        print(f"{self.index} [SUCCESS]", end="\r")
+
+    def log_error(self, outcome: ConversionOutcome) -> None:
+        self.num_errors += 1
+             
+        self.text.append(f"{self.index} [ERROR] {datetime.datetime.now()} - Input: {outcome.input_file.name}\n" + 
+                        f"\tError: {outcome.error_message}\n")
+        
+        print(f"{self.index} [ERROR]", end="\r")
+
+    def log_halt(self, outcome: ConversionOutcome) -> None:
+        self.num_errors += 1
+        
+        self.has_halted = True
+        
+        self.text.append(f"{self.index} [HALT] {datetime.datetime.now()} - ON {outcome.input_file.name}\n"+ f"\tError: {outcome.error_message}\n")
+        
+        self.commit()
+        
+        raise Log.HaltError(f"\nSingle-file conversion from {self.start_stage.name} to {self.target_stage.name} halted. Potential following conversions aborted.\nCritical failure since conversion of {self.index, outcome.input_file.name}.\n\tError:" + outcome.error_message)
+    
+
     def log(self, outcomes: List[ConversionOutcome]) -> None:
         for outcome in outcomes:
             self.num_attempted += 1
 
             if outcome.skipped:
-                self.num_skipped += 1
-
-                if not outcome.error_message :
-                    reason = f"Output: {f"{outcome.output_files[0].name} already exists" if len(outcome.output_files) == 1 else f"Files {outcome.output_files[0].name}... already exist"} and shall not be overwritten\n"
-
-                self.text.append(f"{self.index} [SKIPPED] {datetime.datetime.now()} - Input: {outcome.input_file.name}; \n" + reason)
-                
-                print(f"{self.index} [SKIPPED]", end="\r")
-            
+                self.log_skip(outcome)
             elif outcome.successful:
-                self.num_successful += 1
-
-                self.text.append(f"{self.index} [SUCCESS] {datetime.datetime.now()} - Input: {outcome.input_file.name}; Output: {outcome.output_files[0].name if len(outcome.output_files) == 1 else f"{len(outcome.output_files)} Files ({outcome.output_files[0].name})..."}\n") 
-            
-                if outcome.warning_messages:
-                    self.num_warned_successful += 1
-                    for warning_message in outcome.warning_messages:
-                        self.text.append(f"\t[WARNING] {warning_message}\n")
-                
-                print(f"{self.index} [SUCCESS]", end="\r")
-            
+                self.log_success(outcome)
             else:
-                self.num_errors += 1
-                
-                if outcome.go_on:
-                    self.text.append(f"{self.index} [ERROR] {datetime.datetime.now()} - Input: {outcome.input_file.name}\n" + 
-                                    f"\tError: {outcome.error_message}\n")
-                    
-                    print(f"{self.index} [ERROR]", end="\r")
+                if outcome.halt:
+                    self.log_halt(outcome)
                 else:
-                    self.has_halted = True
-                    self.text.append(f"{self.index} [HALT] {datetime.datetime.now()} - ON {outcome.input_file.name}\n"+ f"\tError: {outcome.error_message}\n")
-                    
-                    self.commit()
-                    
-                    raise Log.HaltError(f"\nSingle-file conversion from {self.start_stage.name} to {self.target_stage.name} halted. Potential following conversions aborted.\nCritical failure since conversion of {self.index, outcome.input_file.name}.\n\tError:" + outcome.error_message)
+                    self.log_error(outcome)
                 
     
     @property
@@ -200,4 +213,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["mxl_in"], converter.pipeline["musicxml_in"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["mxl_in"], overwrite=True, batch_if_possible=True)
