@@ -2,9 +2,7 @@ import warnings, music21, subprocess, json
 from typing import *
 from pathlib import Path
 from conversion_func_infrastructure import *
-
-
-        
+       
 class Generics:
     @staticmethod
     def str_error(e) -> str:
