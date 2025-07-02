@@ -200,7 +200,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
     
     
     def music21_func(self, input_file: FilePath, output_file: FilePath) -> None:
-        from tokenisation.metadata_extraction import extract_metadata
+        from tokenisation import extract_metadata
         
         metadata_folder: FolderPath = output_file.parent.parent.joinpath("metadata_files") 
         metadata_folder.mkdir(parents=True, exist_ok=True)  # Create metadata folder if it doesn't exist
@@ -217,7 +217,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=4)
     
-    def __call__(self, input_file: FilePath, output_folder: FilePath, overwrite: bool) -> List[ConversionOutcome]:
+    def __call__(self, input_file: FilePath, output_folder: FilePath, overwrite: bool = True) -> List[ConversionOutcome]:
         output_folder = output_folder.joinpath("midi_files")
         output_folder.mkdir(parents=True, exist_ok=True) 
         

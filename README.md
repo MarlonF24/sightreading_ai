@@ -35,5 +35,5 @@ To get started with the Sightreading-AI project, follow these steps:
 ...
 
 ## Additional Information
-- **ConversionOutcome Classification**: The project includes a classification system for `ConversionOutcome` objects, which is visually represented in ![ConversionOutcome Classification](image.png). This classification helps in understanding the success, warnings, and errors encountered during the conversion process.
+- **ConversionOutcome Classification**: The project includes a classification system for `ConversionOutcome` objects. ![ConversionOutcome Classification](image.png) This classification helps in understanding the success, warnings, and errors encountered during the conversion process.
 - The project includes a comprehensive logging system to track data processing and conversion stages.
