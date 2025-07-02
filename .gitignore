@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 data_pipeline/
-data_pipeline/data/pdf_in
 temp/
 image.png
 sightreading_ai.code_workspace
