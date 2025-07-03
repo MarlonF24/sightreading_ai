@@ -1,5 +1,5 @@
-import conversion_functions
 from __future__ import annotations
+import conversion_functions
 from typing import *
 from pathlib import Path
 from conversion_func_infrastructure import *
@@ -347,7 +347,7 @@ def construct_music_pipeline(musescore_path: str = r'C:\Program Files\MuseScore 
     tokens = PipelineStage("tokens",".json", {})
     midi_in = PipelineStage("midi_in",".midi", {})
     musicxml_in = PipelineStage("musicxml_in" , ".musicxml", {midi_in: conversion_functions.musicxml_to_midi()})
-    mxl_in = PipelineStage("mxl_in", ".mxl", {musicxml_in: conversion_functions.mxl_to_musicxml()})
+    mxl_in = PipelineStage("mxl_in", ".mxl", {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
     pdf_in = PipelineStage("pdf_in", ".pdf", {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_folder=Path(audiveris_app_folder))})
     return Pipeline(tokens, midi_in, musicxml_in, mxl_in, pdf_in)
 

@@ -1,4 +1,4 @@
-import warnings, music21, subprocess, json
+import warnings, music21, subprocess, json, zipfile, os, shutil
 from typing import *
 from pathlib import Path
 from conversion_func_infrastructure import *
@@ -333,9 +333,8 @@ class pdf_to_mxl(BatchConversionFunction):
                 batch=do_batch, 
                 clean_up=self.single_file_clean_up if self.do_clean_up else None)
 
-    
 
-class mxl_to_musicxml(SingleFileConversionFunction): 
+class mxl_to_musicxml_music21(SingleFileConversionFunction): 
     """
     A class representing a single-file conversion function for converting MXL files to MusicXML files using the music21 library.
 
@@ -381,6 +380,42 @@ class mxl_to_musicxml(SingleFileConversionFunction):
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".musicxml"), self.music21_func)
 
     
+class mxl_to_musicxml_unzip(SingleFileConversionFunction):
+    def __call__(self, input_file, output_folder, overwrite = True):    
+        if not overwrite:
+            if res := Generics.same_name_skip():
+                return res
+        
+        try:
+            with zipfile.ZipFile(input_file, 'r') as archive:
+                name = archive.namelist()[0]
+                extracted_path = archive.extract(name, output_folder)
+                
+                new_path = output_folder / (input_file.stem + ".musicxml")
+
+                if new_path.exists():
+                    new_path.unlink()
+                os.rename(extracted_path, new_path)
+        
+        
+            return [ConversionOutcome( 
+                input_file=input_file, 
+                output_files=[Path(input_file.stem + ".musicxml")],
+                warning_messages=[],
+                successful=True)]
+        
+        except zipfile.BadZipFile:
+            return [ConversionOutcome(
+                input_file=input_file, 
+                output_files=[],
+                warning_messages=[],
+                successful=False,
+                error_message="Input file is not a valid ZIP archive.",
+                halt=False)]
+        finally:
+            for file in output_folder.iterdir():
+                if file.suffix != '.musicxml':
+                    file.unlink() if file.is_file() else shutil.rmtree(output_folder)
 
 class musicxml_to_midi(SingleFileConversionFunction):
     """
@@ -408,7 +443,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         Returns:
         - None: The function does not return any value. It directly writes the converted MIDI file to the output file and saves the metadata to a JSON file.
         """
-        from tokenisation import extract_metadata
+        from tokenisation import Metadata
         
         metadata_folder: FolderPath = output_file.parent.parent.joinpath("metadata_files") 
         metadata_folder.mkdir(parents=True, exist_ok=True)  # Create metadata folder if it doesn't exist
@@ -420,10 +455,10 @@ class musicxml_to_midi(SingleFileConversionFunction):
         
 
         if isinstance(score, music21.stream.base.Score): 
-            metadata = extract_metadata(score)
+            metadata = Metadata(score)
 
         with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=4)
+            json.dump(metadata.data, f, indent=4)
     
     def __call__(self, input_file: FilePath, output_folder: FilePath, overwrite: bool = True) -> List[ConversionOutcome]:
         """

@@ -1,88 +1,109 @@
 import music21
 from typing import *
+from dataclasses import dataclass
+from functools import cached_property
+import music21.stream.base
 
-def extract_metadata(score: music21.stream.base.Score) -> Dict[str, Any]:
-    """
-    Extracts various metadata from a music21 Score object representing a single-part sight-reading exercise.
+class Metadata:
+    #weights for complexity measures
+     
+    def __init__(self, score: music21.stream.base.Score):
+        self._score: music21.stream.base.Score = score
+        
+    
+    @property 
+    def score(self) -> music21.stream.base.Score:
+        return self._score
 
-    Parameters:
-    score (music21.stream.base.Score): The music21 Score object to extract metadata from.
+    @score.setter
+    def score(self, score: music21.stream.base.Score):
+        raise PermissionError("Score cannot be modified after initialization.")
 
-    Returns:
-    Dict[str, Any]: A dictionary containing the extracted metadata. The keys are as follows:
-        - "tempo": The tempo of the piece in beats per minute.
-        - "key_signature": The number of sharps or flats in the key signature.
-        - "time_signature": The time signature as a string (e.g., "4/4").
-        - "clef": The type of clef used (e.g., "treble").
-        - "pitch_range": A tuple containing the minimum and maximum pitches in the piece.
-        - "num_measures": The number of measures in the piece.
-        - "complexity": A measure of the piece's complexity based on note density.
-        - "duration_complexity": A measure of the piece's complexity based on the number of unique durations used.
-        - "pitch_complexity": A measure of the piece's complexity based on interval size variability.
-    """
+    @cached_property
+    def part(self) -> music21.stream.base.Part:
+        return self.score.parts[0]
 
-    part = score.parts[0]  # Assume single-part sight-reading exercises
+    @cached_property
+    def tempos(self) -> List[float]:
+        tempos = self.part.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+        return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
-    # Tempo
-    tempos = part.metronomeMarkBoundaries()
-    tempo = tempos[0][2].getQuarterBPM() if tempos else 80  # Default fallback
+    @cached_property
+    def key_signatures(self) -> List[int]:
+        signatures = self.part.recurse().getElementsByClass(music21.key.KeySignature)
+        return [signature.sharps for signature in signatures] if signatures else [0]  # 0 = C Major/A minor
+    
+    @cached_property
+    def time_signatures(self) -> List[str]:
+        signatures = self.part.recurse().getElementsByClass(music21.meter.TimeSignature)
+        return [signature.ratioString for signature in signatures] if signatures else ['4/4']
+    
+    @cached_property
+    def num_measures(self) -> int:
+        return len(self.part.getElementsByClass(music21.stream.Measure))
+    
+    @cached_property
+    def clefs(self) -> List[str]:
+        return [clef.sign for clef in self.part.getElementsByClass(music21.clef.Clef) if clef.sign]
+    
+    @cached_property
+    def notes(self) -> List[music21.note.Note]:
+        return self.part.flat.notes
 
-    # Key Signature
-    ks = part.getElementsByClass(music21.key.KeySignature).first()
-    key_signature = ks.sharps if ks else 0  # 0 = C Major/A minor
+    @cached_property
+    def midi_values(self) -> List[int]:
+        midi_values: List[int] = []
+        for n in self.notes:
+            if isinstance(n, music21.note.Note):
+                midi_values.append(n.pitch.midi)
+            elif isinstance(n, music21.chord.Chord):
+                midi_values.extend(p.midi for p in n.pitches)  # all pitches in the chord
+        return midi_values
+    
+    @cached_property
+    def num_total_notes(self) -> int:
+        return len(self.part.flat.notes)
 
-    # Time Signature
-    ts = part.getTimeSignatures()[0] if part.getTimeSignatures() else music21.meter.TimeSignature('4/4')
-    time_signature = ts.ratioString
+    @cached_property
+    def pitch_range(self) -> Tuple[str, str]:
+        if self.midi_values:
+            pitch_min = music21.pitch.Pitch(midi=min(self.midi_values)).nameWithOctave
+            pitch_max = music21.pitch.Pitch(midi=max(self.midi_values)).nameWithOctave
+            return (pitch_min, pitch_max)
+        
+        return ("C4", "C5")  # fallback
 
-    # Clef
-    clef_obj = part.getElementsByClass(music21.clef.Clef).first()
-    clef_type = clef_obj.sign if clef_obj else 'treble'
+    @cached_property
+    def intervals(self) -> List[int]:
+        return [abs(n2 - n1) for n1, n2 in zip(self.midi_values[:-1], self.midi_values[1:])]
+    
+    @cached_property
+    def density_complexity(self) -> float:
+        note_density = round(self.num_total_notes / max(self.num_measures, 1) / 2)
+        return min(10, max(1, note_density)) # Complexity (placeholder heuristic: density)
+        
+    @cached_property
+    def duration_complexity(self) -> float:
+        unique_durations = set(round(n.quarterLength, 2) for n in self.notes)
+        return min(10, max(1, len(unique_durations)))  # Duration complexity (how many types of durations are used?)
+    
+    @cached_property
+    def interval_complexity(self) -> float:
+        avg_interval = sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
+        return min(10, round(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
-    # Pitch range
-    notes = part.recurse().notes
-    midi_values: List[int] = []
 
-    for n in notes:
-        if isinstance(n, music21.note.Note):
-            midi_values.append(n.pitch.midi)
-        elif isinstance(n, music21.chord.Chord):
-            midi_values.extend(p.midi for p in n.pitches)  # all pitches in the chord
-
-    if midi_values:
-        pitch_min = music21.pitch.Pitch(midi=min(midi_values)).nameWithOctave
-        pitch_max = music21.pitch.Pitch(midi=max(midi_values)).nameWithOctave
-        pitch_range = (pitch_min, pitch_max)
-    else:
-        pitch_range = ("C4", "C5")  # fallback
-
-    # Complexity (placeholder heuristic: density)
-    total_notes = len(midi_values)
-    num_measures = len(part.getElementsByClass(music21.stream.Measure))
-    note_density = total_notes / max(num_measures, 1)
-
-    complexity = min(10, max(1, round(note_density / 2)))  # crude heuristic
-
-    # Duration complexity (how many types of durations are used?)
-    unique_durations = set(round(n.quarterLength, 2) for n in notes)
-    duration_complexity = min(10, len(unique_durations))
-
-    # Pitch complexity (based on interval size variability)
-    intervals_list = [
-        abs(n2 - n1)
-        for n1, n2 in zip(midi_values[:-1], midi_values[1:])
-    ]
-    avg_interval = sum(intervals_list) / len(intervals_list) if intervals_list else 0.0
-    pitch_complexity = min(10, round(avg_interval / 2))
-
-    return {
-        "tempo": round(tempo),
-        "key_signature": key_signature,
-        "time_signature": time_signature,
-        "clef": clef_type,
-        "pitch_range": pitch_range,
-        "num_measures": num_measures,
-        "complexity": complexity,
-        "duration_complexity": duration_complexity,
-        "pitch_complexity": pitch_complexity
-    }
+    @cached_property
+    def data(self) -> Dict[str, Any]:
+        return {
+            "tempo": round(self.tempos[0]),
+            "key_signature": self.key_signatures[0],
+            "time_signature": self.time_signatures[0],
+            "clef": self.clefs[0:2],
+            "pitch_range": self.pitch_range,
+            "num_measures": self.num_measures,
+            "density_complexity": self.density_complexity,
+            "duration_complexity": self.duration_complexity,
+            "pitch_complexity": self.interval_complexity
+        }
+    

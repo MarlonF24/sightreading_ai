@@ -1,5 +1,5 @@
-import os, datetime
 from __future__ import annotations
+import os, datetime
 from typing import *
 from pipeline import *
 from pathlib import Path
@@ -475,4 +475,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["mxl_in"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["musicxml_in"], overwrite=True, batch_if_possible=True)

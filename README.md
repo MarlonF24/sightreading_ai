@@ -3,7 +3,7 @@
 Generate sight-reading exercises using AI.
 
 ## Goals
-- Train a transformer model to generate short melodic exercises.
+- Train a transformer model to generate short melodic piano exercises.
    1. Collect data: pdf, mxl, musicmxl
    2. Convert to symbolic music formats: musicxml/midi
    3. Load and tokenise symbolic music formats 
