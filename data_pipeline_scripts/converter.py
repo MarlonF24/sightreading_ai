@@ -475,4 +475,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["musicxml_in"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["musicxml_in"], converter.pipeline["midi_in"], overwrite=True, batch_if_possible=True)
