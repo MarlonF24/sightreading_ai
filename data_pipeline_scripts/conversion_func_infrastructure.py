@@ -1,5 +1,5 @@
 from typing import *
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from abc import ABC, abstractmethod
 
@@ -23,8 +23,8 @@ class ConversionOutcome():
     - halt (bool): Indicates whether the conversion should be halted. Default is False.
     """
     input_file: FilePath
-    output_files: List[FilePath]
-    warning_messages: List[str]
+    output_files: List[FilePath] = field(default_factory=list)
+    warning_messages: List[str] = field(default_factory=list)
     
     skipped: bool = False
     successful: bool = True
@@ -32,23 +32,7 @@ class ConversionOutcome():
     halt: bool = False
 
 
-class ConversionFunction(ABC):
-    """
-    An abstract base class representing a conversion function.
-
-    Attributes:
-    - is_batchable (ClassVar[bool]): Indicates whether the conversion function can handle batch processing.
-
-    Methods:
-    - __call__(self, *args, **kwargs) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the conversion operation.
-    """
-    is_batchable: ClassVar[bool]
-
-    @abstractmethod
-    def __call__(self, *args, **kwargs) -> List[ConversionOutcome]:...
-
-
-class SingleFileConversionFunction(ConversionFunction):
+class SingleFileConversionFunction(ABC):
     """
     An abstract class representing a single-file conversion function.
 
@@ -63,10 +47,26 @@ class SingleFileConversionFunction(ConversionFunction):
     is_batchable: ClassVar[bool] = False
 
     @abstractmethod
-    def __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: ...
-        
+    def skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:...
 
-class BatchConversionFunction(ConversionFunction):
+    @abstractmethod
+    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: ...
+
+    @abstractmethod
+    def clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: ...
+
+    def __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: 
+        if not overwrite:
+            if skip := self.skip_single_file(input_file, output_folder):
+                return skip
+        
+        try:
+            return self.conversion(input_file, output_folder, overwrite)
+        finally:
+            self.clean_up(input_file, output_folder)   
+
+
+class BatchConversionFunction(ABC):
     """
     An abstract class representing a batch conversion function.
 
@@ -81,14 +81,42 @@ class BatchConversionFunction(ConversionFunction):
     Concretely, the __call__ method is overloaded so that the type checker expects a FilePath for a True `do_batch` parameter and a FolderPath for a False `do_batch` parameter.
     """
     is_batchable: ClassVar[bool] = True
-    
-    @overload
-    def __call__(self, input_path: FilePath, output_folder: FolderPath, do_batch: Literal[False], overwrite: bool = True) -> List[ConversionOutcome]: ...
-    
-    @overload
-    def __call__(self, input_path: FolderPath, output_folder: FolderPath, do_batch: Literal[True], overwrite: bool = True) -> List[ConversionOutcome]: ...
+
+    @abstractmethod
+    def skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:...
+
+    @abstractmethod
+    def single_file_conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:...
+
+    @abstractmethod
+    def batch_conversion(self, input_folder: FolderPath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:...
     
     @abstractmethod
-    def __call__(self, input_path: FilePath | FolderPath, output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: ...
+    def single_file_clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None:...
+    
+    @abstractmethod
+    def batch_clean_up(self, input_folder: FolderPath, output_folder: FolderPath) -> None:...
+    
+    @overload
+    def __call__(self, input_path: FilePath, output_folder: FolderPath, do_batch: Literal[False], overwrite: bool = True) -> List[ConversionOutcome]:...
+    
+    @overload
+    def __call__(self, input_path: FolderPath, output_folder: FolderPath, do_batch: Literal[True], overwrite: bool = True) -> List[ConversionOutcome]:...
 
+    def __call__(self, input_path: Union[FilePath, FolderPath], output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: 
+            if do_batch:
+                try:
+                    return self.batch_conversion(input_path, output_folder, overwrite)
+                finally:
+                    self.batch_clean_up(input_path, output_folder)
+            else:
+                if not overwrite:
+                    if skip := self.skip_single_file(input_path, output_folder):
+                        return skip
+                try: 
+                    return self.single_file_conversion(input_path, output_folder)
+                finally:
+                    self.single_file_clean_up(input_path, output_folder)
+            
+    
 _ConversionFunction = Union[SingleFileConversionFunction, BatchConversionFunction]

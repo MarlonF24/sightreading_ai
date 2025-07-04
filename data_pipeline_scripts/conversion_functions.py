@@ -53,7 +53,7 @@ class Generics:
         """
         res: List[FilePath] = Generics.find_same_name_outcomes(input_file, output_folder)
     
-        return [ConversionOutcome(input_file=input_file, output_files=res, warning_messages=[], skipped=True)] if res else []
+        return [ConversionOutcome(input_file=input_file, output_files=res, skipped=True)] if res else []
     
 
     SingleFileInterpreter = Callable[[int, str, str, FilePath, FolderPath], List[ConversionOutcome]]
@@ -116,8 +116,6 @@ class Generics:
         except Exception as e:
             return [ConversionOutcome(
                 input_file=input_path,
-                output_files=[],
-                warning_messages=[],
                 successful=False,
                 error_message=Generics.str_error(e),
                 halt=True
@@ -159,7 +157,6 @@ class Generics:
                 return [ConversionOutcome(
                     input_file=input_file,
                     output_files=[output_file],
-                    warning_messages=[],
                     successful=False,
                     error_message=Generics.str_error(e)
                 )]
@@ -196,6 +193,13 @@ class pdf_to_mxl(BatchConversionFunction):
         self.audiveris_app_folder = audiveris_app_folder
         self.do_clean_up = do_clean_up
 
+    @property
+    def classpath(self) -> str:   
+        return ";".join([str(jar_file) for jar_file in self.audiveris_app_folder.glob("*.jar")])
+
+    def skip_single_file(self, input_file, output_folder):
+        return Generics.same_name_skip(input_file, output_folder)
+
     def single_file_interpreter(self, returncode: int, stdout: str, stderr: str, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:
         """
         Interprets the output of a single file conversion process.
@@ -219,9 +223,9 @@ class pdf_to_mxl(BatchConversionFunction):
             return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=True, warning_messages=warnings)]
         
         if "FATAL" in stderr:
-            return [ConversionOutcome(input_file=input_file, output_files=output_files, warning_messages=[],successful=False, error_message=stderr)]
+            return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=False, error_message=stderr)]
         
-        return [ConversionOutcome(input_file=input_file, output_files=output_files, warning_messages=[],successful=False, error_message=stderr)]
+        return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=False, error_message=stderr)]
     
     def batch_interpreter(self, returncode: int, stderr: str, stdout: str, input_folder: FolderPath, output_folder: FolderPath) -> List[ConversionOutcome]:
         """
@@ -248,9 +252,9 @@ class pdf_to_mxl(BatchConversionFunction):
             return res
    
         if "FATAL" in stderr:
-            return [ConversionOutcome(input_file=Path(""), output_files=[], warning_messages=[],successful=False, error_message=stderr, halt=True)]
+            return [ConversionOutcome(input_file=input_folder, successful=False, error_message=stderr, halt=True)]
         
-        return [ConversionOutcome(input_file=Path(""), output_files=[], warning_messages=[], successful=False, error_message=stderr)]
+        return [ConversionOutcome(input_file=input_folder, successful=False, error_message=stderr)]
 
     def batch_clean_up(self, input_folder: FolderPath, output_folder: FolderPath) -> None:
         """
@@ -280,59 +284,28 @@ class pdf_to_mxl(BatchConversionFunction):
         """
         self.batch_clean_up(Path(""), output_folder)
 
-    def __call__(self, input_path: FilePath | FolderPath, output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]:            
-        """
-        Executes the conversion process.
+    def single_file_conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True):  
+        command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", self.classpath, "Audiveris", "-batch", "-export", "-output", str(output_folder), "--", str(input_file)]
+         
+        return Generics.generic_subprocess_conversion(
+            input_path=input_file, 
+            output_folder=output_folder, 
+            command=command, 
+            interpreter=self.single_file_interpreter, 
+            batch=False)
 
-        Parameters:
-        - input_path (FilePath | FolderPath): The path to the input PDF file or folder for the conversion process.
-        - output_folder (FolderPath): The path to the output folder where the resulting MXL files will be saved.
-        - do_batch (bool, optional): A flag indicating whether to perform batch conversion. Defaults to True.
-        - overwrite (bool, optional): A flag indicating whether to overwrite the output file if it already exists. Defaults to True.
+    def batch_conversion(self, input_folder, output_folder, overwrite = True):
+            input_files = [str(f) for f in input_folder.glob("*.pdf")]
 
-        Returns:
-        - List[ConversionOutcome]: A list of ConversionOutcome objects representing the outcome of the conversion process.
-        """
-        
-        # Construct the classpath for the Audiveris application
-        classpath = ";".join([str(jar_file) for jar_file in self.audiveris_app_folder.glob("*.jar")])
-        
-        # If the conversion is batch
-        if do_batch:
-            # Gather all PDF files in the input folder
-            input_files = [str(f) for f in input_path.glob("*.pdf")]
-
-            # Construct the command for the batch conversion process
-            command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", classpath, "Audiveris", "-batch", "-export", "-output", str(output_folder), "--", *input_files]
+            command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", self.classpath, "Audiveris", "-batch", "-export", "-output", str(output_folder), "--", *input_files]
             
-            # Execute the batch conversion process and return the outcome
             return Generics.generic_subprocess_conversion(
-                input_path=input_path, 
+                input_path=input_folder, 
                 output_folder=output_folder, 
                 command=command, 
                 interpreter=self.batch_interpreter, 
-                batch=do_batch, 
-                clean_up=self.batch_clean_up if self.do_clean_up else None)
+                batch=True)
         
-        # If the conversion is not batch
-        else:
-            # If the overwrite flag is False, check if the output file already exists
-            if not overwrite:
-                if outcome := Generics.same_name_skip(input_path, output_folder):
-                    return outcome
-            
-            # Construct the command for the single file conversion process
-            command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", classpath, "Audiveris", "-batch", "-export", "-output", str(output_folder), "--", str(input_path)]
-            
-            # Execute the single file conversion process and return the outcome
-            return Generics.generic_subprocess_conversion(
-                input_path=input_path, 
-                output_folder=output_folder, 
-                command=command, 
-                interpreter=self.single_file_interpreter, 
-                batch=do_batch, 
-                clean_up=self.single_file_clean_up if self.do_clean_up else None)
-
 
 class mxl_to_musicxml_music21(SingleFileConversionFunction): 
     """
@@ -347,7 +320,9 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
     - music21_func(self, input_file: FilePath, output_file: FilePath) -> None: Performs the actual conversion using the music21 library.
     - __call__(self, input_path: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: Executes the conversion process.
     """
-    
+    def skip_single_file(self, input_file, output_folder):
+        return Generics.same_name_skip()
+
     def music21_func(self, input_file: FilePath, output_file: FilePath) -> None:
         """
         This function is responsible for converting a MXL file to a MusicXML file using the music21 library.
@@ -362,7 +337,7 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
         score = music21.converter.parse(input_file)
         score.write('musicxml', fp=output_file)
     
-    def __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:
+    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:
         """
         Executes the conversion process.
 
@@ -374,48 +349,45 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
         Returns:
         - List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
         """
-        if not overwrite:
-            if outcome := Generics.same_name_skip(input_file, output_folder):
-                return outcome
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".musicxml"), self.music21_func)
 
     
 class mxl_to_musicxml_unzip(SingleFileConversionFunction):
-    def __call__(self, input_file, output_folder, overwrite = True):    
-        if not overwrite:
-            if res := Generics.same_name_skip():
-                return res
-        
+    def skip_single_file(self, input_file, output_folder):
+        return Generics.same_name_skip()
+    
+    def clean_up(self, input_file: FilePath, output_folder: FolderPath):
+        for file in output_folder.iterdir():
+                if file.suffix != '.musicxml':
+                    file.unlink() if file.is_file() else shutil.rmtree(output_folder)
+    
+    def conversion(self, input_file, output_folder, overwrite = True):    
         try:
             with zipfile.ZipFile(input_file, 'r') as archive:
                 name = archive.namelist()[0]
                 extracted_path = archive.extract(name, output_folder)
                 
-                new_path = output_folder / (input_file.stem + ".musicxml")
-
-                if new_path.exists():
-                    new_path.unlink()
-                os.rename(extracted_path, new_path)
-        
-        
-            return [ConversionOutcome( 
-                input_file=input_file, 
-                output_files=[Path(input_file.stem + ".musicxml")],
-                warning_messages=[],
-                successful=True)]
-        
         except zipfile.BadZipFile:
             return [ConversionOutcome(
                 input_file=input_file, 
-                output_files=[],
-                warning_messages=[],
                 successful=False,
                 error_message="Input file is not a valid ZIP archive.",
                 halt=False)]
-        finally:
-            for file in output_folder.iterdir():
-                if file.suffix != '.musicxml':
-                    file.unlink() if file.is_file() else shutil.rmtree(output_folder)
+        
+        else:
+            new_path = output_folder / (input_file.stem + ".musicxml")
+
+            if new_path.exists():
+                new_path.unlink()
+
+            os.rename(extracted_path, new_path)
+            
+            return [ConversionOutcome( 
+                input_file=input_file, 
+                output_files=[Path(input_file.stem + ".musicxml")],
+
+                successful=True)]
+
 
 class musicxml_to_midi(SingleFileConversionFunction):
     """
@@ -430,7 +402,12 @@ class musicxml_to_midi(SingleFileConversionFunction):
     - music21_func(self, input_file: FilePath, output_file: FilePath) -> None: Performs the actual conversion using the music21 library.
     - __call__(self, input_path: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: Executes the conversion process.
     """
-    
+    def skip_single_file(self, input_file, output_folder):
+        return Generics.same_name_skip()
+
+    def clean_up(self, input_file, output_folder):
+        pass
+
     def music21_func(self, input_file: FilePath, output_file: FilePath) -> None:
         """
         This function is responsible for converting a MusicXML file to a MIDI file using the music21 library.
@@ -460,7 +437,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         with open(metadata_file, "w") as f:
             json.dump(metadata.data, f, indent=4)
     
-    def __call__(self, input_file: FilePath, output_folder: FilePath, overwrite: bool = True) -> List[ConversionOutcome]:
+    def conversion(self, input_file: FilePath, output_folder: FilePath, overwrite: bool = True) -> List[ConversionOutcome]:
         """
         Executes the conversion process from MusicXML to MIDI (with extracting metadata -> read music21_func doc.).
 
@@ -475,10 +452,8 @@ class musicxml_to_midi(SingleFileConversionFunction):
         output_folder = output_folder.joinpath("midi_files")
         output_folder.mkdir(parents=True, exist_ok=True) 
         
-        if not overwrite:
-            if outcome := Generics.same_name_skip(input_file, output_folder):
-                return outcome
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".midi"), self.music21_func)
+
 
 if __name__ == "__main__":
     print(type(music21.converter.parse(Path(r"C:\Users\marlo\sightreading_ai\data_pipeline\data\musicxml_in\C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.mvt1.musicxml"))))

@@ -44,11 +44,11 @@ class Metadata:
     
     @cached_property
     def clefs(self) -> List[str]:
-        return [clef.sign for clef in self.part.getElementsByClass(music21.clef.Clef) if clef.sign]
+        return [clef.sign for clef in self.part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
     
     @cached_property
-    def notes(self) -> List[music21.note.Note]:
-        return self.part.flat.notes
+    def notes(self) -> List[music21.note.NotRest]:
+        return [note for note in self.part.flatten().notes]
 
     @cached_property
     def midi_values(self) -> List[int]:
@@ -62,7 +62,7 @@ class Metadata:
     
     @cached_property
     def num_total_notes(self) -> int:
-        return len(self.part.flat.notes)
+        return len(self.notes)
 
     @cached_property
     def pitch_range(self) -> Tuple[str, str]:
@@ -96,7 +96,6 @@ class Metadata:
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
-            "tempo": round(self.tempos[0]),
             "key_signature": self.key_signatures[0],
             "time_signature": self.time_signatures[0],
             "clef": self.clefs[0:2],

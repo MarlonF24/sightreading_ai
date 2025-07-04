@@ -96,6 +96,16 @@ class Converter():
             path.mkdir(exist_ok=True)
 
 
+    def batch_overwrite_license(self, overwrite: bool, batch_if_possible: bool, *functions: _ConversionFunction) -> bool:
+        if not overwrite and batch_if_possible:
+            batchers = [type(func).__name__ for func in functions if func.is_batchable]
+            
+            if batchers:
+                do_conversion = input(f"Conversion route contains batch conversion functions({batchers}). Cannot guarantee non-overwriting for batch mode.\nDo you want to proceed regardless? (y/n): ")
+                return do_conversion.lower() == "y"
+            
+        return True
+
     def multi_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None:
         """
         Performs a multi-stage conversion from the start stage to the target stage.
@@ -113,18 +123,22 @@ class Converter():
         It then prints a message indicating the conversion process and iterates through each stage in the route.
         For each stage, it calls the single_stage_conversion method to perform the conversion.
         """
-        route = self.pipeline.shortest_conversion_route(start_stage, target_stage)
+        
+        route, functions = self.pipeline.shortest_conversion_route(start_stage, target_stage)
+         
+        if self.batch_overwrite_license(overwrite, batch_if_possible, *functions) :
+            print(f"\nConverting from {start_stage.name} to {target_stage.name} via {[stage.name for stage in route]}...\n")
 
-        print(f"\nConverting from {start_stage.name} to {target_stage.name} via {[stage.name for stage in route]}...\n")
+            current_start_stage = start_stage
 
-        current_start_stage = start_stage
-
-        for current_target_stage in route[1:]:
-            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible)
-            current_start_stage = current_target_stage
+            for current_target_stage in route[1:]:
+                self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, batch_licenced=True)
+                current_start_stage = current_target_stage
+        else:
+            print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
             
 
-    def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True, batch_if_possible: bool = True) -> None: 
+    def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True, batch_if_possible: bool = True, batch_licenced: bool = False) -> None: 
         """
         Performs a single-stage conversion from the start stage to the target stage.
 
@@ -142,27 +156,37 @@ class Converter():
         """
         if target_stage not in start_stage.children:
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
-
+        
         conversion_function = start_stage.children[target_stage]
         
-        log = Log(self, start_stage, target_stage)
+        if not batch_licenced:
+            batch_licenced = self.batch_overwrite_license(overwrite, batch_if_possible, conversion_function)
         
-        if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
-            print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
-            self.logged_batch_file_conversion(conversion_function, start_stage, target_stage, log, overwrite)
+        if not batch_licenced:
+            print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
         else:
-            print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
-            self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite)
-        
-        print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
+            start_folder = self.data_folder_map[start_stage]
+            target_folder = self.data_folder_map[target_stage]
+            
+            log = Log(self, start_stage, target_stage)
+
+            
+            if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
+                print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
+                self.logged_batch_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
+            else:
+                print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
+                self.logged_single_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
+            
+            print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool) -> None:
         """
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
         Parameters:
-        - conversion_function (_ConversionFunction): The conversion function to be applied to each input file.
+        - conversion_function (ConversionFunction): The conversion function to be applied to each input file.
         - start_stage (PipelineStage): The starting stage of the conversion process.
         - target_stage (PipelineStage): The target stage of the conversion process.
         - log (Log): The log object to store the conversion outcomes.
@@ -171,10 +195,8 @@ class Converter():
         Returns:
         - None
         """
-        start_folder = self.data_folder_map[start_stage]
-        output_folder = self.data_folder_map[target_stage]
 
-        for _file in start_folder.glob(f"*{start_stage.extension}"):          
+        for _file in input_folder.iterdir():          
             input_file: FilePath = FilePath(_file)
             
             if isinstance(conversion_function, BatchConversionFunction):
@@ -185,14 +207,15 @@ class Converter():
 
         log.commit()
 
-    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool) -> None:
+
+    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool) -> None:
         """
         Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
         Parameters:
         - conversion_function (BatchConversionFunction): The batch conversion function to be applied to the input files.
-        - start_stage (PipelineStage): The starting stage of the conversion process.
-        - target_stage (PipelineStage): The target stage of the conversion process.
+        - input_folder (FolderPath): The folder containing the input files.
+        - output_folder (FolderPath): The folder where the output files will be saved.
         - log (Log): The log object to store the conversion outcomes.
         - overwrite (bool): A flag indicating whether existing files should be overwritten.
 
@@ -203,10 +226,8 @@ class Converter():
         It then calls the batch conversion function with the input and output folders, and logs the outcome.
         Finally, it commits the log.
         """
-        start_folder = self.data_folder_map[start_stage]
-        output_folder = self.data_folder_map[target_stage]
     
-        outcome = conversion_function(start_folder, output_folder, do_batch=True, overwrite=overwrite)
+        outcome = conversion_function(input_folder, output_folder, do_batch=True, overwrite=overwrite)
         log.log(outcome)
         log.commit()
 
@@ -468,11 +489,11 @@ class Log():
         None
         """
         self.insert_evaluation()
-        file = self.path.open(mode="w", encoding="utf-8")
-        file.write("".join(self.text))
+        with self.path.open(mode="w", encoding="utf-8") as file:
+            file.write("".join(self.text))
 
 
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["musicxml_in"], converter.pipeline["midi_in"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["midi_in"], overwrite=True, batch_if_possible=True)
