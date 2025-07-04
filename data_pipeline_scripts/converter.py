@@ -126,7 +126,7 @@ class Converter():
         
         route, functions = self.pipeline.shortest_conversion_route(start_stage, target_stage)
          
-        if self.batch_overwrite_license(overwrite, batch_if_possible, *functions) :
+        if self.batch_overwrite_license(overwrite, batch_if_possible, *functions):
             print(f"\nConverting from {start_stage.name} to {target_stage.name} via {[stage.name for stage in route]}...\n")
 
             current_start_stage = start_stage
@@ -157,28 +157,26 @@ class Converter():
         if target_stage not in start_stage.children:
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
         
-        conversion_function = start_stage.children[target_stage]
+        conversion_function = start_stage.children[target_stage]     
+        start_folder = self.data_folder_map[start_stage]
+        target_folder = self.data_folder_map[target_stage]
         
-        if not batch_licenced:
-            batch_licenced = self.batch_overwrite_license(overwrite, batch_if_possible, conversion_function)
-        
-        if not batch_licenced:
-            print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
-        else:
-            start_folder = self.data_folder_map[start_stage]
-            target_folder = self.data_folder_map[target_stage]
-            
-            log = Log(self, start_stage, target_stage)
+        log = Log(self, start_stage, target_stage)
 
-            
-            if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
+        
+        if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
+            if self.batch_overwrite_license(overwrite, batch_if_possible, conversion_function):
                 print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
                 self.logged_batch_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
-            else:
-                print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
-                self.logged_single_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
             
-            print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
+            else:
+                print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
+            
+        else:
+            print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
+            self.logged_single_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
+        
+        print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
     def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool) -> None:
