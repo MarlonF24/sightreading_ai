@@ -304,7 +304,7 @@ class Pipeline():
         self.stages = self.stages.union(set(self.to_stage(*args)))
     
 
-    def shortest_conversion_route(self, start_stage: PipelineStage |str, target_stage: PipelineStage | str) -> Tuple[List[PipelineStage], List[_ConversionFunction]]:
+    def shortest_conversion_route(self, start_stage: PipelineStage |str, target_stage: PipelineStage | str) -> List[PipelineStage]:
         """
         Finds the shortest conversion route between two stages in the pipeline.
 
@@ -345,7 +345,7 @@ class Pipeline():
         if not res:
             raise ValueError(f"No conversion route from {start_stage.name} to {target_stage.name} in {self}.")
         
-        return res, [parent.children[child] for parent, child in zip(res[:-1], res[1:])]
+        return res
     
 
 def construct_music_pipeline(musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_folder: str = r"C:\Program Files\Audiveris\app") -> Pipeline:

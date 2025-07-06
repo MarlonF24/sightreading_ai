@@ -96,15 +96,10 @@ class Converter():
             path.mkdir(exist_ok=True)
 
 
-    def batch_overwrite_license(self, overwrite: bool, batch_if_possible: bool, *functions: _ConversionFunction) -> bool:
-        if not overwrite and batch_if_possible:
-            batchers = [type(func).__name__ for func in functions if func.is_batchable]
+    def batch_get_license(self, func: BatchConversionFunction) -> bool:
+        do_conversion = input(f"Next function will do a batch converion({func}). Non-overwriting was specified, but cannot be guaranteed for batch mode.\nDo you want to proceed regardless? (y/n): ")
+        return do_conversion.lower() == "y"
             
-            if batchers:
-                do_conversion = input(f"Conversion route contains batch conversion functions({batchers}). Cannot guarantee non-overwriting for batch mode.\nDo you want to proceed regardless? (y/n): ")
-                return do_conversion.lower() == "y"
-            
-        return True
 
     def multi_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None:
         """
@@ -124,21 +119,19 @@ class Converter():
         For each stage, it calls the single_stage_conversion method to perform the conversion.
         """
         
-        route, functions = self.pipeline.shortest_conversion_route(start_stage, target_stage)
+        route = self.pipeline.shortest_conversion_route(start_stage, target_stage)
          
-        if self.batch_overwrite_license(overwrite, batch_if_possible, *functions):
-            print(f"\nConverting from {start_stage.name} to {target_stage.name} via {[stage.name for stage in route]}...\n")
+        print(f"\nConverting from {start_stage.name} to {target_stage.name} via {[stage.name for stage in route]}...\n")
 
-            current_start_stage = start_stage
+        current_start_stage = start_stage
 
-            for current_target_stage in route[1:]:
-                self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, batch_licenced=True)
-                current_start_stage = current_target_stage
-        else:
-            print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
+        for current_target_stage in route[1:]:
+            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible)
+            current_start_stage = current_target_stage
+        
             
 
-    def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True, batch_if_possible: bool = True, batch_licenced: bool = False) -> None: 
+    def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True, batch_if_possible: bool = True) -> None: 
         """
         Performs a single-stage conversion from the start stage to the target stage.
 
@@ -165,7 +158,8 @@ class Converter():
 
         
         if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
-            if self.batch_overwrite_license(overwrite, batch_if_possible, conversion_function):
+            batch_licenced = self.batch_get_license(conversion_function) if not overwrite else True
+            if batch_licenced:
                 print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
                 self.logged_batch_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
             
