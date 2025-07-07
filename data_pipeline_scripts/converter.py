@@ -97,7 +97,20 @@ class Converter():
 
 
     def batch_get_license(self, func: BatchConversionFunction) -> bool:
-        do_conversion = input(f"Next function will do a batch converion({func}). Non-overwriting was specified, but cannot be guaranteed for batch mode.\nDo you want to proceed regardless? (y/n): ")
+        """
+        Asks the user for permission to proceed with a batch conversion, even if non-overwriting was specified.
+
+        Parameters:
+        func (BatchConversionFunction): The batch conversion function that will be executed.
+
+        Returns:
+        bool: True if the user agrees to proceed with the batch conversion, False otherwise.
+
+        The function prompts the user to confirm whether they want to proceed with the batch conversion,
+        even if non-overwriting was specified. The user's input is case-insensitive and must be either 'y' or 'n'.
+        If the user enters 'y', the function returns True; otherwise, it returns False.
+        """
+        do_conversion = input(f"Next function will do a batch conversion({func}). Non-overwriting was specified, but cannot be guaranteed for batch mode.\nDo you want to proceed regardless? (y/n): ")
         return do_conversion.lower() == "y"
             
 

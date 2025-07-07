@@ -42,20 +42,81 @@ class SingleFileConversionFunction(ABC):
     - is_batchable (ClassVar[bool]): Indicates that this conversion function can handle single-file processing.
 
     Methods:
-    - __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the single-file conversion operation.
+    - __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: Executes the single-file conversion operation.
+    - skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to determine whether a single file should be skipped.
+    - conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the single-file conversion operation.
+    - clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: An abstract method that should be implemented by subclasses to perform cleanup after a single-file conversion operation.
     """
     is_batchable: ClassVar[bool] = False
 
     @abstractmethod
-    def skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:...
+    def skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: 
+        """
+        An abstract method that determines whether a single file should be skipped during the conversion process.
+
+        Parameters:
+        - input_file (FilePath): The input file to be checked for skipping.
+        - output_folder (FolderPath): The output folder where the converted file will be saved.
+
+        Returns:
+        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. If the file should be skipped, the ConversionOutcome object will have the 'skipped' attribute set to True. Otherwise, it will have the 'skipped' attribute set to False.
+        """
+        ... 
 
     @abstractmethod
-    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: ...
+    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: 
+        """
+        Performs the single-file conversion operation.
 
+        This method is intended to be implemented by subclasses to define the specific conversion logic.
+            - The conversion function should read the input file, perform the conversion, and write the converted file to the output folder.
+            - The conversion function should return a ConversionOutcome object encapsulated in a list, that contains information about the conversion process, such as success status, warning messages, and any error messages encountered.
+            - It is expected that any errors and exceptions should be caught and noted in the ConversionOutcome object.
+
+        Parameters:
+        - input_file (FilePath): The input file to be converted.
+        - output_folder (FolderPath): The folder where the converted file will be saved.
+        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+
+        Returns:
+        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
+        """
+        ...   
+    
     @abstractmethod
-    def clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: ...
+    def clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: 
+        """
+        Performs cleanup after a single-file or batch conversion operation.
+
+        This method is intended to be implemented by subclasses to perform any necessary cleanup tasks after the conversion process.
+        It should handle any resources that need to be released or finalized.
+        If there is no cleanup tasks to perform, this method should be left empty.
+
+        Parameters:
+        - input_file (FilePath): The input file or folder that was processed during the conversion.
+        - output_folder (FolderPath): The output folder where the converted files were saved.
+
+        Returns:
+        - None: This method does not return any value.
+        """
+        ... 
 
     def __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: 
+        """
+        Executes the single-file conversion operation based on the provided parameters.
+
+        This method is responsible for orchestrating the single-file conversion process. It checks for the 'overwrite' flag,
+        skips the conversion if necessary, executes the conversion, and performs cleanup afterward.
+
+        Parameters:
+        - input_file (FilePath): The input file to be converted.
+        - output_folder (FolderPath): The folder where the converted file will be saved.
+        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+
+        Returns:
+        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
+        """
+        
         if not overwrite:
             if skip := self.skip_single_file(input_file, output_folder):
                 return skip
@@ -63,7 +124,7 @@ class SingleFileConversionFunction(ABC):
         try:
             return self.conversion(input_file, output_folder, overwrite)
         finally:
-            self.clean_up(input_file, output_folder)   
+            self.clean_up(input_file, output_folder)
 
 
 class BatchConversionFunction(ABC):
@@ -76,26 +137,104 @@ class BatchConversionFunction(ABC):
     - is_batchable (ClassVar[bool]): Indicates that this conversion function can handle batch processing.
 
     Methods:
-    - __call__(self, input_path: FilePath | FolderPath, output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: A method that handles both single-file and batch processing based on the `do_batch` parameter.
-    
-    Concretely, the __call__ method is overloaded so that the type checker expects a FilePath for a True `do_batch` parameter and a FolderPath for a False `do_batch` parameter.
+    - __call__(self, input_path: FilePath | FolderPath, output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: Executes the batch conversion operation.
+    - skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to determine whether a single file should be skipped.
+    - single_file_conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the single-file conversion operation.
+    - batch_conversion(self, input_folder: FolderPath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the batch conversion operation.
+    - single_file_clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: An abstract method that should be implemented by subclasses to perform cleanup after a single-file conversion operation.
+    - batch_clean_up(self, input_folder: FolderPath, output_folder: FolderPath) -> None: An abstract method that should be implemented by subclasses to perform cleanup after a batch conversion operation.
     """
     is_batchable: ClassVar[bool] = True
 
     @abstractmethod
-    def skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:...
+    def skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:
+        """
+        (non-batch only) An abstract method that determines whether a single file should be skipped during the conversion process.
+
+        Parameters:
+        - input_file (FilePath): The input file to be checked for skipping.
+        - output_folder (FolderPath): The output folder where the converted file will be saved.
+
+        Returns:
+        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. If the file should be skipped, the ConversionOutcome object will have the 'skipped' attribute set to True. Otherwise, it will have the 'skipped' attribute set to False.
+        """
+        ... 
 
     @abstractmethod
-    def single_file_conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:...
+    def single_file_conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:
+        """
+        (non-batch only) Performs the single-file conversion operation.
+
+        This method is intended to be implemented by subclasses to define the specific conversion logic.
+            - The conversion function should read the input file, perform the conversion, and write the converted file to the output folder.
+            - The conversion function should return a ConversionOutcome object encapsulated in a list, that contains information about the conversion process, such as success status, warning messages, and any error messages encountered.
+            - It is expected that any errors and exceptions should be caught and noted in the ConversionOutcome object.
+
+        Parameters:
+        - input_file (FilePath): The input file to be converted.
+        - output_folder (FolderPath): The folder where the converted file will be saved.
+        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+
+        Returns:
+        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
+        """
+        ...   
 
     @abstractmethod
-    def batch_conversion(self, input_folder: FolderPath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:...
+    def batch_conversion(self, input_folder: FolderPath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:
+        """
+        (batch only) Performs the batch conversion operation.
+
+        This method is intended to be implemented by subclasses to define the specific batch conversion logic.
+            - The conversion function should read all files in the input folder, perform the conversion, and write the converted files to the output folder.
+            - The conversion function should return a list of ConversionOutcome objects, each containing information about the conversion process of a single file, such as success status, warning messages, and any error messages encountered.
+            - It is expected that any errors and exceptions should be caught and noted in the ConversionOutcome objects.
+
+        Parameters:
+        - input_folder (FolderPath): The folder containing the input files to be converted.
+        - output_folder (FolderPath): The folder where the converted files will be saved.
+        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+
+        Returns:
+        - List[ConversionOutcome]: A list of ConversionOutcome objects. Each ConversionOutcome object will contain information about the conversion process of a single file.
+        """
+        ...
     
     @abstractmethod
-    def single_file_clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None:...
+    def single_file_clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None:
+        """
+        (non-batch only) Performs cleanup after a single-file or batch conversion operation.
+
+        This method is intended to be implemented by subclasses to perform any necessary cleanup tasks after a single file conversion process.
+        It should handle any resources that need to be released or finalized.
+        If there is no cleanup tasks to perform, this method should be left empty.
+
+        Parameters:
+        - input_file (FilePath): The input file or folder that was processed during the conversion.
+        - output_folder (FolderPath): The output folder where the converted files were saved.
+
+        Returns:
+        - None: This method does not return any value.
+        """
+        ...
     
     @abstractmethod
-    def batch_clean_up(self, input_folder: FolderPath, output_folder: FolderPath) -> None:...
+    def batch_clean_up(self, input_folder: FolderPath, output_folder: FolderPath) -> None:
+        """
+        Performs cleanup after a batch conversion operation.
+
+        This method is intended to be implemented by subclasses to perform any necessary cleanup tasks after a batch conversion process.
+        It should handle any resources that need to be released or finalized.
+        If there is no cleanup tasks to perform, this method should be left empty.
+
+        Parameters:
+        - input_folder (FolderPath): The folder containing the input files that were processed during the batch conversion.
+        - output_folder (FolderPath): The folder where the converted files were saved.
+
+        Returns:
+        - None: This method does not return any value.
+        """
+        ...
     
     @overload
     def __call__(self, input_path: FilePath, output_folder: FolderPath, do_batch: Literal[False], overwrite: bool = True) -> List[ConversionOutcome]:...
@@ -104,19 +243,31 @@ class BatchConversionFunction(ABC):
     def __call__(self, input_path: FolderPath, output_folder: FolderPath, do_batch: Literal[True], overwrite: bool = True) -> List[ConversionOutcome]:...
 
     def __call__(self, input_path: Union[FilePath, FolderPath], output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: 
-            if do_batch:
-                try:
-                    return self.batch_conversion(input_path, output_folder, overwrite)
-                finally:
-                    self.batch_clean_up(input_path, output_folder)
-            else:
-                if not overwrite:
-                    if skip := self.skip_single_file(input_path, output_folder):
-                        return skip
-                try: 
-                    return self.single_file_conversion(input_path, output_folder)
-                finally:
-                    self.single_file_clean_up(input_path, output_folder)
+        """
+        Executes the batch or single-file conversion operation based on the provided parameters.
+
+        Parameters:
+        - input_path (Union[FilePath, FolderPath]): The input file or folder for the conversion.
+        - output_folder (FolderPath): The output folder where the converted files will be saved.
+        - do_batch (bool): A flag indicating whether to perform batch conversion. Default is True.
+        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+
+        Returns:
+        - List[ConversionOutcome]: A list of ConversionOutcome objects. If performing batch conversion, it will contain the results of each file conversion. If performing single-file conversion, it will contain a single ConversionOutcome object.
+        """
+        if do_batch:
+            try:
+                return self.batch_conversion(input_path, output_folder, overwrite)
+            finally:
+                self.batch_clean_up(input_path, output_folder)
+        else:
+            if not overwrite:
+                if skip := self.skip_single_file(input_path, output_folder):
+                    return skip
+            try: 
+                return self.single_file_conversion(input_path, output_folder)
+            finally:
+                self.single_file_clean_up(input_path, output_folder)
             
     
 _ConversionFunction = Union[SingleFileConversionFunction, BatchConversionFunction]

@@ -422,7 +422,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         """
         from tokenisation import Metadata
         
-        metadata_folder: FolderPath = output_file.parent.parent.joinpath("metadata_files") 
+        metadata_folder: FolderPath = output_file.parent.joinpath("metadata_files") 
         metadata_folder.mkdir(parents=True, exist_ok=True)  # Create metadata folder if it doesn't exist
         
         metadata_file: FilePath = metadata_folder.joinpath(input_file.stem + ".meta.json")  
@@ -449,11 +449,9 @@ class musicxml_to_midi(SingleFileConversionFunction):
         Returns:
         - List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
         """
-        output_folder = output_folder.joinpath("midi_files")
-        output_folder.mkdir(parents=True, exist_ok=True) 
         
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".midi"), self.music21_func)
-
-
+    
+    
 if __name__ == "__main__":
     print(type(music21.converter.parse(Path(r"C:\Users\marlo\sightreading_ai\data_pipeline\data\musicxml_in\C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.mvt1.musicxml"))))
