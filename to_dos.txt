@@ -1,0 +1,10 @@
+- weights in metadata, include key/tempo... changes
+- folder -> dir
+- fix musicxml to midi zero division errors
+- adapt metadata extraction to the two hands, update complexities
+- when decoding tokens, set instruments to piano for both hands: 
+    midi = tokenizer.decode(token_sequence)
+    for instrument in midi.instruments:
+        instrument.program = 0  # Program 0 = Acoustic Grand Piano
+- make all conversion functions check file extension before conversion (or maybe centralistic via converter)
+

@@ -39,13 +39,7 @@ class SingleFileConversionFunction(ABC):
     Inherits from ConversionFunction.
 
     Attributes:
-    - is_batchable (ClassVar[bool]): Indicates that this conversion function can handle single-file processing.
-
-    Methods:
-    - __call__(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: Executes the single-file conversion operation.
-    - skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to determine whether a single file should be skipped.
-    - conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the single-file conversion operation.
-    - clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: An abstract method that should be implemented by subclasses to perform cleanup after a single-file conversion operation.
+        is_batchable (ClassVar[bool]): Indicates that this conversion function can handle single-file processing.
     """
     is_batchable: ClassVar[bool] = False
 
@@ -55,11 +49,11 @@ class SingleFileConversionFunction(ABC):
         An abstract method that determines whether a single file should be skipped during the conversion process.
 
         Parameters:
-        - input_file (FilePath): The input file to be checked for skipping.
-        - output_folder (FolderPath): The output folder where the converted file will be saved.
+            input_file (FilePath): The input file to be checked for skipping.
+            output_folder (FolderPath): The output folder where the converted file will be saved.
 
         Returns:
-        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. If the file should be skipped, the ConversionOutcome object will have the 'skipped' attribute set to True. Otherwise, it will have the 'skipped' attribute set to False.
+            List[ConversionOutcome]: A list containing a single ConversionOutcome object. If the file should be skipped, the ConversionOutcome object will have the 'skipped' attribute set to True. Otherwise, it will have the 'skipped' attribute set to False.
         """
         ... 
 
@@ -74,12 +68,12 @@ class SingleFileConversionFunction(ABC):
             - It is expected that any errors and exceptions should be caught and noted in the ConversionOutcome object.
 
         Parameters:
-        - input_file (FilePath): The input file to be converted.
-        - output_folder (FolderPath): The folder where the converted file will be saved.
-        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+            input_file (FilePath): The input file to be converted.
+            output_folder (FolderPath): The folder where the converted file will be saved.
+            overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
 
         Returns:
-        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
+            List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
         """
         ...   
     
@@ -93,11 +87,8 @@ class SingleFileConversionFunction(ABC):
         If there is no cleanup tasks to perform, this method should be left empty.
 
         Parameters:
-        - input_file (FilePath): The input file or folder that was processed during the conversion.
-        - output_folder (FolderPath): The output folder where the converted files were saved.
-
-        Returns:
-        - None: This method does not return any value.
+            input_file (FilePath): The input file or folder that was processed during the conversion.
+            output_folder (FolderPath): The output folder where the converted files were saved.
         """
         ... 
 
@@ -109,12 +100,12 @@ class SingleFileConversionFunction(ABC):
         skips the conversion if necessary, executes the conversion, and performs cleanup afterward.
 
         Parameters:
-        - input_file (FilePath): The input file to be converted.
-        - output_folder (FolderPath): The folder where the converted file will be saved.
-        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+            input_file (FilePath): The input file to be converted.
+            output_folder (FolderPath): The folder where the converted file will be saved.
+            overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
 
         Returns:
-        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
+            List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
         """
         
         if not overwrite:
@@ -134,15 +125,7 @@ class BatchConversionFunction(ABC):
     Inherits from ConversionFunction.
 
     Attributes:
-    - is_batchable (ClassVar[bool]): Indicates that this conversion function can handle batch processing.
-
-    Methods:
-    - __call__(self, input_path: FilePath | FolderPath, output_folder: FolderPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: Executes the batch conversion operation.
-    - skip_single_file(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to determine whether a single file should be skipped.
-    - single_file_conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the single-file conversion operation.
-    - batch_conversion(self, input_folder: FolderPath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: An abstract method that should be implemented by subclasses to perform the batch conversion operation.
-    - single_file_clean_up(self, input_file: FilePath, output_folder: FolderPath) -> None: An abstract method that should be implemented by subclasses to perform cleanup after a single-file conversion operation.
-    - batch_clean_up(self, input_folder: FolderPath, output_folder: FolderPath) -> None: An abstract method that should be implemented by subclasses to perform cleanup after a batch conversion operation.
+        is_batchable (ClassVar[bool]): Indicates that this conversion function can handle batch processing.
     """
     is_batchable: ClassVar[bool] = True
 
@@ -152,11 +135,11 @@ class BatchConversionFunction(ABC):
         (non-batch only) An abstract method that determines whether a single file should be skipped during the conversion process.
 
         Parameters:
-        - input_file (FilePath): The input file to be checked for skipping.
-        - output_folder (FolderPath): The output folder where the converted file will be saved.
+            input_file (FilePath): The input file to be checked for skipping.
+            output_folder (FolderPath): The output folder where the converted file will be saved.
 
         Returns:
-        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. If the file should be skipped, the ConversionOutcome object will have the 'skipped' attribute set to True. Otherwise, it will have the 'skipped' attribute set to False.
+            List[ConversionOutcome]: A list containing a single ConversionOutcome object. If the file should be skipped, the ConversionOutcome object will have the 'skipped' attribute set to True. Otherwise, it will have the 'skipped' attribute set to False.
         """
         ... 
 
@@ -171,12 +154,12 @@ class BatchConversionFunction(ABC):
             - It is expected that any errors and exceptions should be caught and noted in the ConversionOutcome object.
 
         Parameters:
-        - input_file (FilePath): The input file to be converted.
-        - output_folder (FolderPath): The folder where the converted file will be saved.
-        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+            input_file (FilePath): The input file to be converted.
+            output_folder (FolderPath): The folder where the converted file will be saved.
+            overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
 
         Returns:
-        - List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
+            List[ConversionOutcome]: A list containing a single ConversionOutcome object. The ConversionOutcome object will contain information about the conversion process, such as success status, warning messages, and any error messages encountered.
         """
         ...   
 
@@ -191,12 +174,12 @@ class BatchConversionFunction(ABC):
             - It is expected that any errors and exceptions should be caught and noted in the ConversionOutcome objects.
 
         Parameters:
-        - input_folder (FolderPath): The folder containing the input files to be converted.
-        - output_folder (FolderPath): The folder where the converted files will be saved.
-        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+            input_folder (FolderPath): The folder containing the input files to be converted.
+            output_folder (FolderPath): The folder where the converted files will be saved.
+            overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
 
         Returns:
-        - List[ConversionOutcome]: A list of ConversionOutcome objects. Each ConversionOutcome object will contain information about the conversion process of a single file.
+            List[ConversionOutcome]: A list of ConversionOutcome objects. Each ConversionOutcome object will contain information about the conversion process of a single file.
         """
         ...
     
@@ -210,11 +193,8 @@ class BatchConversionFunction(ABC):
         If there is no cleanup tasks to perform, this method should be left empty.
 
         Parameters:
-        - input_file (FilePath): The input file or folder that was processed during the conversion.
-        - output_folder (FolderPath): The output folder where the converted files were saved.
-
-        Returns:
-        - None: This method does not return any value.
+            input_file (FilePath): The input file or folder that was processed during the conversion.
+            output_folder (FolderPath): The output folder where the converted files were saved.
         """
         ...
     
@@ -228,11 +208,8 @@ class BatchConversionFunction(ABC):
         If there is no cleanup tasks to perform, this method should be left empty.
 
         Parameters:
-        - input_folder (FolderPath): The folder containing the input files that were processed during the batch conversion.
-        - output_folder (FolderPath): The folder where the converted files were saved.
-
-        Returns:
-        - None: This method does not return any value.
+            input_folder (FolderPath): The folder containing the input files that were processed during the batch conversion.
+            output_folder (FolderPath): The folder where the converted files were saved.
         """
         ...
     
@@ -247,13 +224,13 @@ class BatchConversionFunction(ABC):
         Executes the batch or single-file conversion operation based on the provided parameters.
 
         Parameters:
-        - input_path (Union[FilePath, FolderPath]): The input file or folder for the conversion.
-        - output_folder (FolderPath): The output folder where the converted files will be saved.
-        - do_batch (bool): A flag indicating whether to perform batch conversion. Default is True.
-        - overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
+            input_path (Union[FilePath, FolderPath]): The input file or folder for the conversion.
+            output_folder (FolderPath): The output folder where the converted files will be saved.
+            do_batch (bool): A flag indicating whether to perform batch conversion. Default is True.
+            overwrite (bool): A flag indicating whether to overwrite existing files in the output folder. Default is True.
 
         Returns:
-        - List[ConversionOutcome]: A list of ConversionOutcome objects. If performing batch conversion, it will contain the results of each file conversion. If performing single-file conversion, it will contain a single ConversionOutcome object.
+            List[ConversionOutcome]: A list of ConversionOutcome objects. If performing batch conversion, it will contain the results of each file conversion. If performing single-file conversion, it will contain a single ConversionOutcome object.
         """
         if do_batch:
             try:

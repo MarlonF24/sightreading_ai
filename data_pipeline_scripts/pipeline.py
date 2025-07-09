@@ -6,7 +6,7 @@ from conversion_func_infrastructure import *
 from conversion_func_infrastructure import _ConversionFunction
 
 
-class PipelineStage():    
+class PipelineStage():
     """
     A class representing a stage in a data processing pipeline.
 
@@ -14,13 +14,6 @@ class PipelineStage():
     - name (str): The name of the pipeline stage. This should be a unique identifier.
     - extension (str): The file extension associated with this stage (e.g., ".musicxml", ".midi").
     - children (dict[PipelineStage, _ConversionFunction]): A dictionary mapping child PipelineStage objects to the conversion function required to reach them from the current stage.
-
-    Methods:
-    - __init__(self, name: str, extension: str, children: dict[PipelineStage, _ConversionFunction] = {}): Initializes a PipelineStage object.
-    - __repr__(self) -> str: Returns a string representation of the PipelineStage object.
-    - add_child_stage(self, child_stage: PipelineStage, conversion_function: _ConversionFunction) -> None: Adds a child stage and its associated conversion function to the current pipeline stage.
-    - remove_child_stage(self, child_stage: PipelineStage) -> None: Removes a child stage from the current pipeline stage.
-    - set_conversion_function(self, target_stage: PipelineStage, conversion_function: _ConversionFunction) -> None: Sets the conversion function for a specific child stage of the current pipeline stage.
     """
        
     def __init__(self, name: str, extension: str, children: dict[PipelineStage, _ConversionFunction] = {}) -> None:
@@ -31,9 +24,6 @@ class PipelineStage():
             name (str): The name of the pipeline stage. This should be a unique identifier.
             extension (str): The file extension associated with this stage (e.g., ".musicxml", ".midi").
             children (dict[PipelineStage, _ConversionFunction], optional): A dictionary mapping child PipelineStage objects to the conversion function required to reach them from the current stage. Defaults to an empty dictionary.
-
-        Returns:
-            None
         """
         self.name: str = name
         self.extension: str = extension
@@ -48,11 +38,9 @@ class PipelineStage():
         Adds a child stage and its associated conversion function to the current pipeline stage.
 
         Parameters:
-        - child_stage (PipelineStage): The child stage to be added.
-        - conversion_function (ConversionFunction): The conversion function required to transition from the current stage to the child stage.
+            child_stage (PipelineStage): The child stage to be added.
+            conversion_function (ConversionFunction): The conversion function required to transition from the current stage to the child stage.
 
-        Returns:
-        - None: The function does not return any value. It modifies the internal state of the current pipeline stage.
         """
         self.children[child_stage] = conversion_function
     
@@ -61,10 +49,7 @@ class PipelineStage():
         Removes a child stage from the current pipeline stage.
 
         Parameters:
-        - child_stage (PipelineStage): The child stage to be removed. This stage should exist in the current stage's children.
-
-        Returns:
-        - None: The function does not return any value. It modifies the internal state of the current pipeline stage.
+            child_stage (PipelineStage): The child stage to be removed. This stage should exist in the current stage's children.
         """
         del self.children[child_stage]
     
@@ -73,11 +58,8 @@ class PipelineStage():
         Sets the conversion function for a specific child stage of the current pipeline stage.
     
         Parameters:
-        - target_stage (PipelineStage): The child stage for which the conversion function is being set.
-        - conversion_function (ConversionFunction): The conversion function to be used for transitioning from the current stage to the target stage.
-    
-        Returns:
-        - None: The function does not return any value. It modifies the internal state of the current pipeline stage.
+            target_stage (PipelineStage): The child stage for which the conversion function is being set.
+            conversion_function (ConversionFunction): The conversion function to be used for transitioning from the current stage to the target stage.
         """
         self.children[target_stage] = conversion_function
      
@@ -87,20 +69,10 @@ class Pipeline():
     A class representing a data processing pipeline.
 
     Attributes:
-    - stages (Set[PipelineStage]): A set of PipelineStage objects representing the stages in the pipeline.
-    - stage_name_map (Dict[str, PipelineStage]): A dictionary mapping the names of the pipeline stages to their corresponding PipelineStage objects.
-
-    Methods:
-    - __init__(self, *args: PipelineStage): Initializes a Pipeline object with the provided PipelineStage instances.
-    - __repr__(self) -> str: Returns a string representation of the Pipeline object.
-    - __contains__(self, stage: PipelineStage | str) -> bool: Checks if a given stage is present in the pipeline.
-    - __getitem__(self, stage_name: str) -> PipelineStage: Returns the PipelineStage object corresponding to the given stage name.
-    - __iter__(self) -> Iterator[PipelineStage]: Returns an iterator over the stages in the pipeline.
-    - __len__(self) -> int: Returns the number of stages in the pipeline.
-    - to_stage(self, *stages: str | PipelineStage) -> tuple[PipelineStage, ...]: Converts a variable number of stage names or PipelineStage objects into a tuple of PipelineStage objects.
-    - remove_stage(self, *args: PipelineStage | str) -> None: Removes one or more stages from the pipeline.
-    - add_stage(self, *args: PipelineStage) -> None: Adds one or more stages to the pipeline.
-    - shortest_conversion_route(self, start_stage: PipelineStage | str, target_stage: PipelineStage | str) -> List[PipelineStage]: Finds the shortest conversion route between two stages in the pipeline.
+        stages (Set[PipelineStage]): A set of PipelineStage objects representing the stages in the pipeline.
+        stage_name_map (Dict[str, PipelineStage]): A dictionary mapping the names of the pipeline stages to their corresponding PipelineStage objects.
+        graph (Dict[PipelineStage, List[PipelineStage]]): A dictionary representing the directed acyclic graph (DAG) of the pipeline stages.
+        size (int): The total number of stages in the pipeline.
     """
 
     def __init__(self, *args: PipelineStage):
@@ -108,10 +80,7 @@ class Pipeline():
         Initializes a Pipeline object with the provided PipelineStage instances.
     
         Parameters:
-        - *args (PipelineStage): Variable length argument list of PipelineStage instances. These instances will be added to the pipeline.
-    
-        Returns:
-        - None: The function does not return any value. It initializes the internal state of the Pipeline object.
+            *args (PipelineStage): Variable length argument list of PipelineStage instances. These instances will be added to the pipeline.
         """
         self.stages = {stage for stage in args}
 
@@ -128,9 +97,6 @@ class Pipeline():
     
         Parameters:
         - stages (Set[PipelineStage]): A set of PipelineStage instances to be added to the pipeline.
-    
-        Returns:
-        - None: The function does not return any value. It modifies the internal state of the Pipeline object.
     
         This setter function performs the following tasks:
         1. Sets the internal stages attribute to the provided stages.
@@ -173,14 +139,6 @@ class Pipeline():
         """
         Checks if all stage names in the pipeline are unique.
 
-        Raises a ValueError if any duplicate stage names are found.
-
-        Parameters:
-        None
-
-        Returns:
-        None
-
         Raises:
         ValueError: If any duplicate stage names are found.
         """
@@ -194,20 +152,8 @@ class Pipeline():
         """
         Checks if all child stages in the pipeline are contained within the pipeline.
     
-        Raises a ValueError if any child stage is not found within the pipeline.
-    
-        Parameters:
-        None
-    
-        Returns:
-        None
-    
         Raises:
-        ValueError: If any child stage is not found within the pipeline.
-    
-        The function iterates through all child stages in the pipeline's graph.
-        For each child stage, it checks if the child stage is present in the pipeline.
-        If any child stage is not found, a ValueError is raised with a descriptive error message.
+            ValueError: If any child stage is not found within the pipeline.
         """
         uncontained_children = {child.name for children in self.graph.values() for child in children if child not in self}
         
@@ -225,10 +171,10 @@ class Pipeline():
             Converts a variable number of stage names or PipelineStage objects into a tuple of PipelineStage objects.
         
             Parameters:
-            - *stages (str | PipelineStage): Variable length argument list. Each element can be either a string representing a stage name or a PipelineStage object.
+                *stages (str | PipelineStage): Variable length argument list. Each element can be either a string representing a stage name or a PipelineStage object.
         
             Returns:
-            tuple[PipelineStage, ...]: A tuple of PipelineStage objects. If a string is provided, it is converted into a PipelineStage object using the stage name map.
+                tuple[PipelineStage, ...]: A tuple of PipelineStage objects. If a string is provided, it is converted into a PipelineStage object using the stage name map.
         
             This function is used to simplify the process of working with stages in the pipeline. It allows for the use of either stage names or PipelineStage objects as input parameters.
             """
@@ -244,10 +190,10 @@ class Pipeline():
         If a PipelineStage object is provided, the function directly checks if it exists in the pipeline.
     
         Parameters:
-        - stage (PipelineStage | str): The stage to be checked. This can be either a PipelineStage object or a string representing the name of the stage.
+            stage (PipelineStage | str): The stage to be checked. This can be either a PipelineStage object or a string representing the name of the stage.
     
         Returns:
-        - bool: Returns True if the stage is present in the pipeline, False otherwise.
+            bool: Returns True if the stage is present in the pipeline, False otherwise.
         """
         if isinstance(stage, str):
             return stage in self.stage_name_map
@@ -277,10 +223,8 @@ class Pipeline():
         Removes one or more stages from the pipeline.
     
         Parameters:
-        - *args (PipelineStage | str): Variable length argument list. Each element can be either a string representing a stage name or a PipelineStage object.
+            *args (PipelineStage | str): Variable length argument list. Each element can be either a string representing a stage name or a PipelineStage object.
     
-        Returns:
-        - None: The function does not return any value. It modifies the internal state of the pipeline by removing the specified stages.
     
         This function uses the `to_stage` method to convert any string stage names into PipelineStage objects.
         It then removes the specified stages from the pipeline by updating the `stages` attribute.
@@ -293,15 +237,9 @@ class Pipeline():
         Adds one or more stages to the pipeline.
     
         Parameters:
-        - *args (PipelineStage): Variable length argument list. Each element should be a PipelineStage object.
-    
-        Returns:
-        - None: The function does not return any value. It modifies the internal state of the pipeline by adding the specified stages.
-    
-        This function uses the `to_stage` method to convert any string stage names into PipelineStage objects.
-        It then adds the specified stages to the pipeline by updating the `stages` attribute.
+            *args (PipelineStage): Variable length argument list. Each element should be a PipelineStage object.
         """
-        self.stages = self.stages.union(set(self.to_stage(*args)))
+        self.stages = self.stages.union(set(*args))
     
 
     def shortest_conversion_route(self, start_stage: PipelineStage |str, target_stage: PipelineStage | str) -> List[PipelineStage]:
@@ -309,11 +247,11 @@ class Pipeline():
         Finds the shortest conversion route between two stages in the pipeline.
 
         Parameters:
-        - start_stage (PipelineStage | str): The starting stage for the conversion route. This can be either a PipelineStage object or a string representing the name of the stage.
-        - target_stage (PipelineStage | str): The target stage for the conversion route. This can be either a PipelineStage object or a string representing the name of the stage.
+            start_stage (PipelineStage | str): The starting stage for the conversion route. This can be either a PipelineStage object or a string representing the name of the stage.
+            target_stage (PipelineStage | str): The target stage for the conversion route. This can be either a PipelineStage object or a string representing the name of the stage.
 
         Returns:
-        List[PipelineStage]: A list of PipelineStage objects representing the shortest conversion route from the start stage to the target stage.
+            List[PipelineStage]: A list of PipelineStage objects representing the shortest conversion route from the start stage to the target stage.
 
         The function uses a depth-first search (DFS) algorithm to find the shortest conversion route.
         It keeps track of visited stages, the current shortest route, and the length of the current route.
@@ -354,7 +292,7 @@ def construct_music_pipeline(musescore_path: str = r'C:\Program Files\MuseScore 
     #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
     
     tokens = PipelineStage("tokens",".json", {})
-    midi_in = PipelineStage("midi_in",".midi", {})
+    midi_in = PipelineStage("midi_in",".midi", {tokens: conversion_functions.midi_to_tokens()})
     musicxml_in = PipelineStage("musicxml_in" , ".musicxml", {midi_in: conversion_functions.musicxml_to_midi()})
     mxl_in = PipelineStage("mxl_in", ".mxl", {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
     pdf_in = PipelineStage("pdf_in", ".pdf", {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_folder=Path(audiveris_app_folder))})

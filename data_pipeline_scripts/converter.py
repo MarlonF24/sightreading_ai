@@ -11,36 +11,30 @@ class Converter():
     """
     A class responsible for managing the conversion process between different file formats.
 
-    Attributes:
-    - pipeline (Pipeline): The pipeline object representing the conversion flow.
-    - data_folder_path (FolderPath): The path to the folder containing the input data files.
-    - logs_folder_path (FolderPath): The path to the folder where the log files will be stored.
+    Class Attributes:
+        OWN_PATH (FilePath): The absolute file path of the current Converter class.
+        OWN_DIRECTORY (FolderPath): The directory containing the current Converter class.
+        OWN_DIRECTORY_DIRECTORY (FolderPath): The directory containing the OWN_DIRECTORY directory.
 
-    Methods:
-    - assign_log_folders(self) -> None: Assigns and creates the log folders for each conversion route.
-    - assign_data_folders(self) -> None: Assigns and creates the data folders for each stage in the pipeline.
-    - multi_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None: Performs a multi-stage conversion from the start stage to the target stage.
-    - single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None: Performs a single-stage conversion from the start stage to the target stage.
-    - logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool) -> None: Performs a single-file conversion and logs the outcome.
-    - logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool) -> None: Performs a batch conversion and logs the outcome.
+    Attributes:
+        pipeline (Pipeline): The pipeline object representing the conversion flow.
+        data_folder_path (FolderPath): The path to the folder containing the input data files.
+        logs_folder_path (FolderPath): The path to the folder where the log files will be stored.
     """
 
-    own_path: FilePath = Path(os.path.abspath(__file__))
-    own_directory: FolderPath = own_path.parent
-    own_directory_directory = own_directory.parent
+    OWN_PATH: FilePath = Path(os.path.abspath(__file__))
+    OWN_DIRECTORY: FolderPath = OWN_PATH.parent
+    OWN_DIRECTORY_DIRECTORY = OWN_DIRECTORY.parent
     
     
-    def __init__(self, pipeline: Pipeline, data_folder_path: FolderPath = Path(fr"{own_directory_directory}\data_pipeline\data"), logs_folder_path: FolderPath = Path(fr"{own_directory_directory}\data_pipeline\logs")) -> None:
+    def __init__(self, pipeline: Pipeline, data_folder_path: FolderPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\data"), logs_folder_path: FolderPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\logs")) -> None:
         """
         Initializes a Converter object with the given pipeline, data folder path, and logs folder path.
 
         Parameters:
-        - pipeline (Pipeline): The pipeline object representing the conversion flow.
-        - data_folder_path (FolderPath, optional): The path to the folder containing the input data files. Defaults to the 'data' folder within the 'data_pipeline' directory.
-        - logs_folder_path (FolderPath, optional): The path to the folder where the log files will be stored. Defaults to the 'logs' folder within the 'data_pipeline' directory.
-
-        Returns:
-        - None
+            pipeline (Pipeline): The pipeline object representing the conversion flow.
+            data_folder_path (FolderPath, optional): The path to the folder containing the input data files. Defaults to the 'data' folder within the 'data_pipeline' directory.
+            logs_folder_path (FolderPath, optional): The path to the folder where the log files will be stored. Defaults to the 'logs' folder within the 'data_pipeline' directory.
         """
         # environment.set('musescoreDirectPNGPath', musescore_path)
         self.logs_folder_path = logs_folder_path
@@ -60,12 +54,6 @@ class Converter():
         The log folders are created within the logs_folder_path, and their names are based on the conversion routes.
         Each conversion route is represented by a tuple of two PipelineStage instances, and the corresponding log folder
         is stored in the log_folder_map dictionary.
-
-        Parameters:
-        - self (Converter): The Converter object that manages the conversion process.
-
-        Returns:
-        - None
         """
         self.log_folder_map: dict[Tuple[PipelineStage, PipelineStage], FolderPath] = {}
         for stage in self.pipeline:
@@ -82,12 +70,6 @@ class Converter():
         The data folders are created within the data_folder_path, and their names are based on the stage names.
         Each stage is represented by a PipelineStage instance, and the corresponding data folder
         is stored in the data_folder_map dictionary.
-
-        Parameters:
-        - self (Converter): The Converter object that manages the conversion process.
-
-        Returns:
-        - None
         """
         self.data_folder_map: dict[PipelineStage, FolderPath] = {}
         for stage in self.pipeline:
@@ -101,10 +83,10 @@ class Converter():
         Asks the user for permission to proceed with a batch conversion, even if non-overwriting was specified.
 
         Parameters:
-        func (BatchConversionFunction): The batch conversion function that will be executed.
+            func (BatchConversionFunction): The batch conversion function that will be executed.
 
         Returns:
-        bool: True if the user agrees to proceed with the batch conversion, False otherwise.
+            bool: True if the user agrees to proceed with the batch conversion, False otherwise.
 
         The function prompts the user to confirm whether they want to proceed with the batch conversion,
         even if non-overwriting was specified. The user's input is case-insensitive and must be either 'y' or 'n'.
@@ -119,13 +101,10 @@ class Converter():
         Performs a multi-stage conversion from the start stage to the target stage.
 
         Parameters:
-        - start_stage (PipelineStage): The starting stage of the conversion process.
-        - target_stage (PipelineStage): The target stage of the conversion process.
-        - overwrite (bool, optional): A flag indicating whether existing files should be overwritten. Defaults to True.
-        - batch_if_possible (bool, optional): A flag indicating whether batch conversion should be attempted if possible. Defaults to True.
-
-        Returns:
-        - None
+            start_stage (PipelineStage): The starting stage of the conversion process.
+            target_stage (PipelineStage): The target stage of the conversion process.
+            overwrite (bool, optional): A flag indicating whether existing files should be overwritten. Defaults to True.
+            batch_if_possible (bool, optional): A flag indicating whether batch conversion should be attempted if possible. Defaults to True.
 
         The function first finds the shortest conversion route from the start stage to the target stage.
         It then prints a message indicating the conversion process and iterates through each stage in the route.
@@ -143,22 +122,18 @@ class Converter():
             current_start_stage = current_target_stage
         
             
-
     def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True, batch_if_possible: bool = True) -> None: 
         """
         Performs a single-stage conversion from the start stage to the target stage.
 
         Parameters:
-        - start_stage (PipelineStage): The starting stage of the conversion process.
-        - target_stage (PipelineStage): The target stage of the conversion process.
-        - overwrite (bool, optional): A flag indicating whether existing files should be overwritten. Defaults to True.
-        - batch_if_possible (bool, optional): A flag indicating whether batch conversion should be attempted if possible. Defaults to True.
-
-        Returns:
-        - None
+            start_stage (PipelineStage): The starting stage of the conversion process.
+            target_stage (PipelineStage): The target stage of the conversion process.
+            overwrite (bool, optional): A flag indicating whether existing files should be overwritten. Defaults to True.
+            batch_if_possible (bool, optional): A flag indicating whether batch conversion should be attempted if possible. Defaults to True.
 
         Raises:
-        - ValueError: If the conversion from the start stage to the target stage is not possible.
+            ValueError: If the conversion from the start stage to the target stage is not possible.
         """
         if target_stage not in start_stage.children:
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
@@ -191,14 +166,11 @@ class Converter():
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
         Parameters:
-        - conversion_function (ConversionFunction): The conversion function to be applied to each input file.
-        - start_stage (PipelineStage): The starting stage of the conversion process.
-        - target_stage (PipelineStage): The target stage of the conversion process.
-        - log (Log): The log object to store the conversion outcomes.
-        - overwrite (bool): A flag indicating whether existing files should be overwritten.
-
-        Returns:
-        - None
+            conversion_function (ConversionFunction): The conversion function to be applied to each input file.
+            start_stage (PipelineStage): The starting stage of the conversion process.
+            target_stage (PipelineStage): The target stage of the conversion process.
+            log (Log): The log object to store the conversion outcomes.
+            overwrite (bool): A flag indicating whether existing files should be overwritten.
         """
 
         for _file in input_folder.iterdir():          
@@ -218,14 +190,11 @@ class Converter():
         Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
         Parameters:
-        - conversion_function (BatchConversionFunction): The batch conversion function to be applied to the input files.
-        - input_folder (FolderPath): The folder containing the input files.
-        - output_folder (FolderPath): The folder where the output files will be saved.
-        - log (Log): The log object to store the conversion outcomes.
-        - overwrite (bool): A flag indicating whether existing files should be overwritten.
-
-        Returns:
-        - None
+            conversion_function (BatchConversionFunction): The batch conversion function to be applied to the input files.
+            input_folder (FolderPath): The folder containing the input files.
+            output_folder (FolderPath): The folder where the output files will be saved.
+            log (Log): The log object to store the conversion outcomes.
+            overwrite (bool): A flag indicating whether existing files should be overwritten.
 
         The function retrieves the input and output folders based on the start and target stages.
         It then calls the batch conversion function with the input and output folders, and logs the outcome.
@@ -242,21 +211,24 @@ class Log():
     A class responsible for logging the outcome of each conversion process.
 
     Attributes:
-    - converter (Converter): The Converter object that initiated the conversion process.
-    - start_stage (PipelineStage): The starting stage of the conversion process.
-    - target_stage (PipelineStage): The target stage of the conversion process.
-
-    Methods:
-    - log_skip(self, outcome: ConversionOutcome) -> None: Logs a skipped conversion outcome.
-    - log_success(self, outcome: ConversionOutcome) -> None: Logs a successful conversion outcome.
-    - log_error(self, outcome: ConversionOutcome) -> None: Logs an error during the conversion process.
-    - log_halt(self, outcome: ConversionOutcome) -> None: Logs a halt during the conversion process.
-    - log(self, outcomes: List[ConversionOutcome]) -> None: Logs a list of conversion outcomes.
-    - insert_evaluation(self) -> None: Inserts the evaluation statistics at the beginning of the log.
-    - commit(self) -> None: Writes the log to a file and prints the evaluation statistics.
-
-    Nested Class:
-    - HaltError(Exception): An exception raised when a halt occurs during the conversion process.
+        converter (Converter): The Converter object that initiated the conversion process.
+        start_stage (PipelineStage): The starting stage of the conversion process.
+        target_stage (PipelineStage): The target stage of the conversion process.
+        path (FilePath): The file path where the log will be saved.
+        
+        start_stage_folder_path (FolderPath): The folder path where the input files for the conversion process are located.
+        target_stage_folder_path (FolderPath): The folder path where the output files for the conversion process will be saved.
+        
+        text (List[str]): A list to store the log messages.
+        
+        num_total_files (int): The total number of files to be converted.
+        num_attempted (int): The total number of files attempted for conversion.
+        num_skipped (int): The total number of files skipped for conversion.
+        num_successful (int): The total number of successful conversions.
+        num_errors (int): The total number of errors encountered during the conversion process.
+        num_warned_successful (int): The total number of successful conversions with warnings.
+        has_halted (bool): A flag indicating whether a halt has occurred during the conversion process.
+        
     """
     
     class HaltError(Exception):
@@ -270,9 +242,9 @@ class Log():
         Initializes a new instance of the Log class.
 
         Parameters:
-        - converter (Converter): The Converter object that initiated the conversion process.
-        - start_stage (PipelineStage): The starting stage of the conversion process.
-        - target_stage (PipelineStage): The target stage of the conversion process.
+            converter (Converter): The Converter object that initiated the conversion process.
+            start_stage (PipelineStage): The starting stage of the conversion process.
+            target_stage (PipelineStage): The target stage of the conversion process.
 
         The `__init__` method initializes the attributes of the `Log` class, such as the `converter`, `start_stage`, `target_stage`, log file path, and other counters for tracking the number of attempted, skipped, successful, error, and warned successful conversions. It also initializes the list `text` to store the log messages.
         """
@@ -303,7 +275,7 @@ class Log():
         and "total" is the total number of files in the starting stage folder.
 
         Returns:
-        - str: The progress index string.
+            str: The progress index string.
         """
         return f"[{self.num_attempted}/{self.num_total_files}]"
 
@@ -312,7 +284,7 @@ class Log():
         Logs a skipped conversion outcome.
 
         Parameters:
-        - outcome (ConversionOutcome): The outcome of the conversion process.
+            outcome (ConversionOutcome): The outcome of the conversion process.
 
         The function increments the number of skipped conversions, appends a message to the log text,
         and prints a progress indicator. If the outcome does not contain an error message, it adds a reason
@@ -332,12 +304,9 @@ class Log():
         Logs a successful conversion outcome.
 
         Parameters:
-        - outcome (ConversionOutcome): The outcome of the conversion process.
+            outcome (ConversionOutcome): The outcome of the conversion process.
             This object contains information about the input file, output files,
             warning messages, and error message (if any).
-
-        Returns:
-        - None
 
         The function increments the number of successful conversions, appends a message to the log text,
         and prints a progress indicator. If the outcome contains warning messages, it adds them to the log text.
@@ -358,11 +327,8 @@ class Log():
         Logs an error during the conversion process.
 
         Parameters:
-        - outcome (ConversionOutcome): The outcome of the conversion process.
+            outcome (ConversionOutcome): The outcome of the conversion process.
             This object contains information about the input file and the error message.
-
-        Returns:
-        - None
 
         The function increments the number of errors, appends a message to the log text,
         and prints a progress indicator. The message includes the current progress index,
@@ -380,11 +346,8 @@ class Log():
         Logs a halt during the conversion process.
 
         Parameters:
-        - outcome (ConversionOutcome): The outcome of the conversion process.
+            outcome (ConversionOutcome): The outcome of the conversion process.
             This object contains information about the input file and the error message.
-
-        Returns:
-        - None
 
         The function increments the number of errors, appends a message to the log text,
         and prints a progress indicator. The message includes the current progress index,
@@ -407,7 +370,7 @@ class Log():
         Logs the outcomes of each conversion process.
 
         Parameters:
-        outcomes (List[ConversionOutcome]): A list of ConversionOutcome objects, each representing the outcome of a single conversion process.
+            outcomes (List[ConversionOutcome]): A list of ConversionOutcome objects, each representing the outcome of a single conversion process.
 
         The function iterates through each outcome in the list. It increments the number of attempted conversions,
         and then calls the appropriate logging function based on the outcome's properties.
@@ -431,12 +394,12 @@ class Log():
                 
     
     @property
-    def stats(self):
+    def stats(self) -> dict[str, Any]:
         """
         Returns a dictionary containing various statistics related to the conversion process.
 
         Returns:
-        dict: A dictionary with the following keys and their corresponding values:
+            dict: A dictionary with the following keys and their corresponding values:
             - "num_total": The total number of files in the starting stage folder.
             - "num_attempted": The number of files attempted to be converted.
             - "num_successful": A tuple containing the number of successful conversions and the percentage of successful conversions.
@@ -455,7 +418,7 @@ class Log():
         "has_halted": self.has_halted
         }
     
-    def insert_evaluation(self):
+    def insert_evaluation(self) -> None:
         """
         Inserts evaluation statistics at the beginning of the log.
 
@@ -479,7 +442,7 @@ class Log():
         ]
         
     
-    def commit(self):
+    def commit(self) -> None:
         """
         Writes the log to a file and prints the evaluation statistics.
 
@@ -501,4 +464,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["midi_in"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["musicxml_in"], converter.pipeline["midi_in"], overwrite=True, batch_if_possible=True)

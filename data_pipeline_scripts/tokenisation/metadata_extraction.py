@@ -20,45 +20,75 @@ class Metadata:
         raise PermissionError("Score cannot be modified after initialization.")
 
     @cached_property
-    def part(self) -> music21.stream.base.Part:
+    def rh_part(self) -> music21.stream.base.Part:
         return self.score.parts[0]
-
+    
+    @cached_property
+    def lh_part(self) -> music21.stream.base.Part:
+        return self.score.parts[1]
+    
     @cached_property
     def tempos(self) -> List[float]:
-        tempos = self.part.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+        tempos = self.rh_part.recurse().getElementsByClass(music21.tempo.MetronomeMark)
         return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
     @cached_property
     def key_signatures(self) -> List[int]:
-        signatures = self.part.recurse().getElementsByClass(music21.key.KeySignature)
+        signatures = self.rh_part.recurse().getElementsByClass(music21.key.KeySignature)
         return [signature.sharps for signature in signatures] if signatures else [0]  # 0 = C Major/A minor
     
     @cached_property
     def time_signatures(self) -> List[str]:
-        signatures = self.part.recurse().getElementsByClass(music21.meter.TimeSignature)
+        signatures = self.rh_part.recurse().getElementsByClass(music21.meter.TimeSignature)
         return [signature.ratioString for signature in signatures] if signatures else ['4/4']
     
     @cached_property
     def num_measures(self) -> int:
-        return len(self.part.getElementsByClass(music21.stream.Measure))
+        return len(self.rh_part.getElementsByClass(music21.stream.Measure))
     
     @cached_property
-    def clefs(self) -> List[str]:
-        return [clef.sign for clef in self.part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
+    def rh_clefs(self) -> List[str]:
+        return [clef.sign for clef in self.rh_part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
     
     @cached_property
-    def notes(self) -> List[music21.note.NotRest]:
-        return [note for note in self.part.flatten().notes]
+    def lh_clefs(self) -> List[str]:
+        return [clef.sign for clef in self.lh_part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
+    
+    @cached_property
+    def rh_notes(self) -> List[music21.note.NotRest]:
+        return [note for note in self.rh_part.flatten().notes]
 
     @cached_property
-    def midi_values(self) -> List[int]:
+    def lh_notes(self) -> List[music21.note.NotRest]:
+        return [note for note in self.lh_part.flatten().notes]
+    
+    @cached_property
+    def rh_midi_values(self) -> List[int]:
         midi_values: List[int] = []
-        for n in self.notes:
+        for n in self.rh_notes:
             if isinstance(n, music21.note.Note):
                 midi_values.append(n.pitch.midi)
             elif isinstance(n, music21.chord.Chord):
                 midi_values.extend(p.midi for p in n.pitches)  # all pitches in the chord
         return midi_values
+    
+    @cached_property
+    def lh_midi_values(self) -> List[int]:
+        midi_values: List[int] = []
+        for n in self.lh_notes:
+            if isinstance(n, music21.note.Note):
+                midi_values.append(n.pitch.midi)
+            elif isinstance(n, music21.chord.Chord):
+                midi_values.extend(p.midi for p in n.pitches)  # all pitches in the chord
+        return midi_values
+    
+    @cached_property
+    def notes(self) -> List[music21.note.NotRest]:
+        return self.rh_notes + self.lh_notes  # combine notes from both parts
+    
+    @cached_property
+    def midi_values(self) -> List[int]:
+        return self.rh_midi_values + self.lh_midi_values  # combine MIDI values from both parts
     
     @cached_property
     def num_total_notes(self) -> int:
@@ -73,9 +103,18 @@ class Metadata:
         
         return ("C4", "C5")  # fallback
 
+    
+    @cached_property
+    def rh_intervals(self) -> List[int]:
+        return [abs(n2 - n1) for n1, n2 in zip(self.rh_midi_values[:-1], self.rh_midi_values[1:])]
+    
+    @cached_property
+    def lh_intervals(self) -> List[int]:
+        return [abs(n2 - n1) for n1, n2 in zip(self.lh_midi_values[:-1], self.lh_midi_values[1:])]  # intervals for left hand only
+    
     @cached_property
     def intervals(self) -> List[int]:
-        return [abs(n2 - n1) for n1, n2 in zip(self.midi_values[:-1], self.midi_values[1:])]
+        return self.rh_intervals + self.lh_intervals  # combine intervals from both hands
     
     @cached_property
     def density_complexity(self) -> float:
@@ -98,7 +137,7 @@ class Metadata:
         return {
             "key_signature": self.key_signatures[0],
             "time_signature": self.time_signatures[0],
-            "clef": self.clefs[0:2],
+            "clefs": (self.rh_clefs[0], self.lh_clefs[0]),
             "pitch_range": self.pitch_range,
             "num_measures": self.num_measures,
             "density_complexity": self.density_complexity,
