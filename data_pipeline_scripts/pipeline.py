@@ -286,13 +286,13 @@ class Pipeline():
         return res
     
 
-def construct_music_pipeline(musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_folder: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
+def construct_music_pipeline(musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_folder: str = r"C:\Program Files\Audiveris\app", token_max_bars: int = 34) -> Pipeline:
     #pdf_out = PipelineStage("musicxml_out" , ".musicxml", None)
     #musicxml_out = PipelineStage("musicxml_out" , ".musicxml", midi_in)
     #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
     
     tokens = PipelineStage("tokens",".json", {})
-    midi_in = PipelineStage("midi_in",".midi", {tokens: conversion_functions.midi_to_tokens()})
+    midi_in = PipelineStage("midi_in",".midi", {tokens: conversion_functions.midi_to_tokens(max_bars=token_max_bars)})
     musicxml_in = PipelineStage("musicxml_in" , ".musicxml", {midi_in: conversion_functions.musicxml_to_midi()})
     mxl_in = PipelineStage("mxl_in", ".mxl", {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
     pdf_in = PipelineStage("pdf_in", ".pdf", {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_folder=Path(audiveris_app_folder))})

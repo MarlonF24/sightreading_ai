@@ -1,8 +1,7 @@
-import warnings, music21, subprocess, json, zipfile, os, shutil, miditok
+import warnings, music21, subprocess, json, zipfile, os, shutil, miditok, io, sys
 from typing import *
 from pathlib import Path
 from conversion_func_infrastructure import *
-from functools import cached_property
        
 class Generics:
     """
@@ -22,6 +21,24 @@ class Generics:
             """
             return f"{type(e).__name__}: {str(e)}"
     
+    @staticmethod
+    def mute_decorator(func: Callable):
+        """
+        A decorator to mute the output of the function.
+        """
+        def wrapper(*args, **kwargs):
+            import io, sys
+            text_trap = io.StringIO()
+            old_stdout, old_stderr = sys.stdout, sys.stderr
+            try:
+                sys.stdout = text_trap
+                sys.stderr = text_trap
+                return func(*args, **kwargs)
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+        return wrapper
+
     @staticmethod
     def find_same_name_outcomes(input_file: FilePath, output_folder: FolderPath) -> List[FilePath]:
         """
@@ -405,47 +422,60 @@ class musicxml_to_midi(SingleFileConversionFunction):
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".midi"), self.music21_func)
     
     
-class midi_to_tokens(BatchConversionFunction):
+class midi_to_tokens(SingleFileConversionFunction):
     # use_programs=False, for monophonic single-instrument input
-    config = miditok.classes.TokenizerConfig(use_programs=True, use_time_signatures=True, use_tempos=True, one_token_stream_for_programs=True)
-        
-    def skip_single_file(self, input_file, output_folder):
-        return Generics.same_name_skip()
+    tokeniser_config = miditok.classes.TokenizerConfig(use_programs=True, 
+                                             use_time_signatures=True, 
+                                             #use_chords=True,
+                                             use_rests=True,
+                                             #chord_tokens_with_root_note=True,
+                                             #chord_unknown=(2, 4),
+                                             one_token_stream_for_programs=True)
     
-    def batch_conversion(self, input_folder, output_folder, overwrite = True) -> List[ConversionOutcome]:
-        self.metadata_folder = input_folder.joinpath("metadata_files")
-        max_bars = max(map(lambda x: json.load(x.open())["num_measures"], self.metadata_folder.glob("*.meta.json")))
+    def __init__(self, max_bars: int = 34):
+        self.tokeniser = miditok.REMI(midi_to_tokens.tokeniser_config, max_bar_embedding=max_bars)
 
-        tokeniser = miditok.REMI(midi_to_tokens.config, max_bar_embedding=max_bars + 2)
-        tokeniser.one_token_stream = True
+    @property
+    def max_bars(self):
+        return self.tokeniser.config.additional_params["max_bar_embedding"]
 
-        for file in input_folder.glob("*.midi"):
-            with file.parent.joinpath("metadata_files", file.stem + ".meta.json").open() as f:
-                metadata = json.load(f)
-            
-            tokens = tokeniser.encode(file)
-            print(tokens)
-            tokeniser.save_tokens(tokens=tokens, path=output_folder.joinpath(file.stem + ".tokens.json"))
-            break
 
-        return []
+    def skip_single_file(self, input_file, output_folder):
+        return Generics.same_name_skip(input_file, output_folder)
 
-    def single_file_conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:
-        if input_file.suffix == ".midi":    
-            with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
-                metadata = json.load(f)
-            
-            tokeniser = miditok.REMI(midi_to_tokens.config, max_bar_embedding=metadata["num_measures"])
-            print(tokeniser.encode(input_file))
+    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:    
+        with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
+            metadata = json.load(f)
+
+        if metadata["num_measures"] > self.max_bars:
+            return [ConversionOutcome(
+                input_file=input_file,
+                skipped=True,
+                error_message=f"File has more measures ({metadata["num_measures"]}) than max bars setting ({self.max_bars})"
+            )]
+    
+        tokens = self.tokeniser.encode(input_file)
         
-        return []
+        sys.stdout.write(3 * "\033[A\033[2K") 
+        sys.stdout.flush()
+
+        # print(tokens)
+        output_path = output_folder.joinpath(input_file.stem + ".tokens.json")
+        self.tokeniser.save_tokens(tokens=tokens, path=output_path)
+        
+        return [ConversionOutcome(
+            input_file=input_file,
+            output_files=[output_path]
+        )]
 
 
-    def single_file_clean_up(self, input_file, output_folder):
+    def clean_up(self, input_file, output_folder):
         pass
 
-    def batch_clean_up(self, input_folder, output_folder):
-        pass
 
 if __name__ == "__main__":
-    print(type(music21.converter.parse(Path(r"C:\Users\marlo\sightreading_ai\data_pipeline\data\musicxml_in\C._Schfer_A._Sartorio_Op._45_-_Volume_2_-_Melodious_Exercises_Piano.mvt1.musicxml"))))
+    # print(miditok.constants.CHORD_MAPS, miditok.constants.CHORD_TOKENS_WITH_ROOT_NOTE)
+    tokeniser = miditok.REMI(midi_to_tokens.tokeniser_config)
+    tokens = tokeniser.encode(Path(r"data_pipeline\data\midi_in\C._Schfer_A._Sartorio_Op._45_-_Volume_I_-_Sight_Reading_Exercises_Piano.mvt34.midi"))
+    print(tokens)
+    #midi = tokeniser.decode(tokens, output_path=r"data_pipeline\data\midi_out\test.midi")

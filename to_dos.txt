@@ -1,10 +1,12 @@
-- weights in metadata, include key/tempo... changes
 - folder -> dir
 - fix musicxml to midi zero division errors
-- adapt metadata extraction to the two hands, update complexities
+- update complexities, include key/tempo... changes
 - when decoding tokens, set instruments to piano for both hands: 
     midi = tokenizer.decode(token_sequence)
     for instrument in midi.instruments:
         instrument.program = 0  # Program 0 = Acoustic Grand Piano
-- make all conversion functions check file extension before conversion (or maybe centralistic via converter)
-
+- include metadata in tokens, overwork metadata
+- maybe make all conversion function init parameters argument of music pipeline function in pipeline.py
+- test model and adjust weights 
+- test chord tokens
+- organise imports to functions throughout

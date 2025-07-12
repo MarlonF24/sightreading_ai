@@ -6,7 +6,11 @@ import music21.stream.base
 
 class Metadata:
     #weights for complexity measures
-     
+    DENSITY_COMPLEXITY_WEIGHT = 1
+    DURATION_COMPLEXITY_WEIGHT = 1
+    INTERVAL_COMPLEXITY_WEIGHT = 1
+    
+    
     def __init__(self, score: music21.stream.base.Score):
         self._score: music21.stream.base.Score = score
         
@@ -118,17 +122,17 @@ class Metadata:
     
     @cached_property
     def density_complexity(self) -> float:
-        note_density = round(self.num_total_notes / max(self.num_measures, 1) / 2)
+        note_density = Metadata.DENSITY_COMPLEXITY_WEIGHT * round(self.num_total_notes / max(self.num_measures, 1) / 2)
         return min(10, max(1, note_density)) # Complexity (placeholder heuristic: density)
         
     @cached_property
     def duration_complexity(self) -> float:
-        unique_durations = set(round(n.quarterLength, 2) for n in self.notes)
-        return min(10, max(1, len(unique_durations)))  # Duration complexity (how many types of durations are used?)
+        unique_durations =  set(round(n.quarterLength, 2) for n in self.notes)
+        return min(10, max(1, Metadata.DURATION_COMPLEXITY_WEIGHT * len(unique_durations)))  # Duration complexity (how many types of durations are used?)
     
     @cached_property
     def interval_complexity(self) -> float:
-        avg_interval = sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
+        avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
         return min(10, round(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
 
@@ -137,7 +141,7 @@ class Metadata:
         return {
             "key_signature": self.key_signatures[0],
             "time_signature": self.time_signatures[0],
-            "clefs": (self.rh_clefs[0], self.lh_clefs[0]),
+            "clefs": {"RH": self.rh_clefs[0], "LH": self.lh_clefs[0]},
             "pitch_range": self.pitch_range,
             "num_measures": self.num_measures,
             "density_complexity": self.density_complexity,

@@ -156,12 +156,13 @@ class Converter():
             
         else:
             print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
-            self.logged_single_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
-        
+            self.logged_single_file_conversion(conversion_function, start_folder, target_folder, log, overwrite, start_stage.extension)
+
+        print(log.stats["num_successful"], "successful, successful / attempted")
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool, extension: str) -> None:
         """
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -173,7 +174,7 @@ class Converter():
             overwrite (bool): A flag indicating whether existing files should be overwritten.
         """
 
-        for _file in input_folder.iterdir():          
+        for _file in input_folder.glob(f"*{extension}"):          
             input_file: FilePath = FilePath(_file)
             
             if isinstance(conversion_function, BatchConversionFunction):
@@ -258,7 +259,10 @@ class Log():
         self.target_stage_folder_path: FolderPath = self.converter.data_folder_map[target_stage]
         self.text: List[str] = [self.path.name + f"\n {self.start_stage_folder_path} -> {self.target_stage_folder_path}" + 2 * "\n"]
         
-        self.num_total_files: int = len(os.listdir(self.converter.data_folder_map[start_stage]))
+        self.num_total_files: int = 0  
+        for _ in self.converter.data_folder_map[start_stage].glob(f"*{start_stage.extension}"):
+            self.num_total_files += 1
+
         self.num_attempted: int = 0
         self.num_skipped: int = 0 
         self.num_successful: int = 0 
@@ -464,4 +468,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["musicxml_in"], converter.pipeline["midi_in"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens"], overwrite=True, batch_if_possible=True)
