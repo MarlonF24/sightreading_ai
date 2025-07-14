@@ -6,7 +6,7 @@
     for instrument in midi.instruments:
         instrument.program = 0  # Program 0 = Acoustic Grand Piano
 - include metadata in tokens, overwork metadata
-- maybe make all conversion function init parameters argument of music pipeline function in pipeline.py
+- maybe make all conversion function init parameters arguments of music pipeline function in pipeline.py
 - test model and adjust weights 
 - test chord tokens
 - organise imports to functions throughout
