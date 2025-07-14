@@ -10,3 +10,4 @@
 - test model and adjust weights 
 - test chord tokens
 - organise imports to functions throughout
+- exception catchers for new conversion functions
