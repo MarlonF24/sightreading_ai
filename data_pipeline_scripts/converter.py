@@ -297,9 +297,9 @@ class Log():
         self.num_skipped += 1
         
         if not outcome.error_message:
-            reason = f"Output: {f'{outcome.output_files[0].name} already exists' if len(outcome.output_files) == 1 else f'Files {outcome.output_files[0].name}... already exist'} and shall not be overwritten\n"
+            outcome.error_message = f"Output: {f'{outcome.output_files[0].name} already exists' if len(outcome.output_files) == 1 else f'Files {outcome.output_files[0].name}... already exist'} and shall not be overwritten\n"
 
-        self.text.append(f"{self.index} [SKIPPED] {datetime.datetime.now()} - Input: {outcome.input_file.name}; \n" + reason)
+        self.text.append(f"{self.index} [SKIPPED] {datetime.datetime.now()} - Input: {outcome.input_file.name}; \n" + outcome.error_message)
         
         print(f"{self.index} [SKIPPED]", end="\r")
 
@@ -468,4 +468,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["tokens"], overwrite=True, batch_if_possible=True)

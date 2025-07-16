@@ -39,6 +39,21 @@ class Generics:
                 sys.stderr = old_stderr
         return wrapper
 
+
+    @staticmethod
+    def invalid_metadata_skip(input_file: FilePath, tokenised_data: Dict[str, str]) -> List[ConversionOutcome]:
+        from tokenisation import Metadata
+        b, err = Metadata.valid_metadata(tokenised_data)
+        if not b:
+            return [ConversionOutcome(
+                input_file=input_file,
+                skipped=True,
+                error_message=f"Invalid metadata: {err}",
+            )]
+        
+        return []
+
+
     @staticmethod
     def find_same_name_outcomes(input_file: FilePath, output_folder: FolderPath) -> List[FilePath]:
         """
@@ -147,7 +162,7 @@ class Generics:
     def generic_music21_conversion(
         input_file: FilePath, 
         output_file: FilePath, 
-        func: Callable[[FilePath, FilePath], None]
+        func: Callable[[FilePath, FilePath], None | List[ConversionOutcome]]
         ) -> List[ConversionOutcome]:
         """
         This function is a generic utility for converting music files using the music21 library.
@@ -164,7 +179,9 @@ class Generics:
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")
             try:
-                func(input_file, output_file)
+                if t := func(input_file, output_file):
+                    return t
+                
                 return [ConversionOutcome(
                     input_file=input_file,
                     output_files=[output_file],
@@ -224,6 +241,13 @@ class pdf_to_mxl(BatchConversionFunction):
         Returns:
             List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
         """
+        if "Could not export since transcription did not complete successfully" in stdout:
+            return [ConversionOutcome(
+                input_file=input_file,
+                successful=False,
+                error_message="Transcription failed (caught from INFO log)."
+            )]
+
         output_files = [file for file in output_folder.glob(f"{input_file.stem}*.mxl")]
         
         if returncode == 0:
@@ -379,7 +403,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
     def clean_up(self, input_file, output_folder):
         pass
 
-    def music21_func(self, input_file: FilePath, output_file: FilePath) -> None:
+    def music21_func(self, input_file: FilePath, output_file: FilePath) -> None | List[ConversionOutcome]:
         """
         This function is responsible for converting a MusicXML file to a MIDI file using the music21 library.
         It also extracts metadata from the parsed music score and saves it to a JSON file.
@@ -400,9 +424,10 @@ class musicxml_to_midi(SingleFileConversionFunction):
         if not isinstance(score, music21.stream.Score):
             raise ValueError("Input file is not a valid MusicXML file.")
         
+        metadata = Metadata(score)
 
-        if len(score.parts) != 2:
-            raise ValueError("Expected two staves (RH and LH), got something else.")
+        if t := Generics.invalid_metadata_skip(input_file, metadata.tokenised_data):
+            return t
 
         lh = score.parts[1]
 
@@ -413,32 +438,18 @@ class musicxml_to_midi(SingleFileConversionFunction):
         
         score.write("midi", fp=output_file)
         
-        metadata = Metadata(score)
-
         with open(metadata_file, "w") as f:
-            json.dump(metadata.data, f, indent=4)
+            json.dump(metadata.tokenised_data, f, indent=4)
+
+        return None
     
     def conversion(self, input_file: FilePath, output_folder: FilePath, overwrite: bool = True) -> List[ConversionOutcome]:
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".midi"), self.music21_func)
     
     
 class midi_to_tokens(SingleFileConversionFunction):
-    # use_programs=False, for monophonic single-instrument input
-    tokeniser_config = miditok.classes.TokenizerConfig(use_programs=True, 
-                                             use_time_signatures=True, 
-                                             #use_chords=True,
-                                             use_rests=True,
-                                             #chord_tokens_with_root_note=True,
-                                             #chord_unknown=(2, 4),
-                                             one_token_stream_for_programs=True)
-    
-    def __init__(self, max_bars: int = 34):
-        self.tokeniser = miditok.REMI(midi_to_tokens.tokeniser_config, max_bar_embedding=max_bars)
-
-    @property
-    def max_bars(self):
-        return self.tokeniser.config.additional_params["max_bar_embedding"]
-
+    from tokenisation import tokeniser
+    tokeniser = tokeniser
 
     def skip_single_file(self, input_file, output_folder):
         return Generics.same_name_skip(input_file, output_folder)
@@ -447,22 +458,22 @@ class midi_to_tokens(SingleFileConversionFunction):
         with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
             metadata = json.load(f)
 
-        if metadata["num_measures"] > self.max_bars:
-            return [ConversionOutcome(
-                input_file=input_file,
-                skipped=True,
-                error_message=f"File has more measures ({metadata["num_measures"]}) than max bars setting ({self.max_bars})"
-            )]
-    
-        tokens = self.tokeniser.encode(input_file)
-        
-        sys.stdout.write(3 * "\033[A\033[2K") 
+        if t := Generics.invalid_metadata_skip(input_file, metadata):
+            return t
+
+        token_seq = midi_to_tokens.tokeniser.encode(input_file)
+        sys.stdout.write(3 * "\033[A\033[2K")
         sys.stdout.flush()
 
-        # print(tokens)
+        if not isinstance(token_seq, miditok.TokSequence):
+            raise ValueError("Tokenisation failed. The output is not a valid TokSequence object.")
+
+        token_seq.ids = [midi_to_tokens.tokeniser._vocab_base[token] for token in metadata.values()] + token_seq.ids
+
+        # print(token_seq)
         output_path = output_folder.joinpath(input_file.stem + ".tokens.json")
-        self.tokeniser.save_tokens(tokens=tokens, path=output_path)
-        
+        midi_to_tokens.tokeniser.save_tokens(tokens=token_seq, path=output_path)
+
         return [ConversionOutcome(
             input_file=input_file,
             output_files=[output_path]
@@ -475,7 +486,10 @@ class midi_to_tokens(SingleFileConversionFunction):
 
 if __name__ == "__main__":
     # print(miditok.constants.CHORD_MAPS, miditok.constants.CHORD_TOKENS_WITH_ROOT_NOTE)
-    tokeniser = miditok.REMI(midi_to_tokens.tokeniser_config)
-    tokens = tokeniser.encode(Path(r"data_pipeline\data\midi_in\C._Schfer_A._Sartorio_Op._45_-_Volume_I_-_Sight_Reading_Exercises_Piano.mvt34.midi"))
+    tokeniser = midi_to_tokens.tokeniser
+    # print(tokeniser._vocab_base)
+    # print(tokeniser.pad_token_id)
+
+    tokens = tokeniser.encode(Path(r"C:\Users\marlo\sightreading_ai\data_pipeline\data\midi_in\musescore.com_classicman_clairdelune_srsltid=AfmBOoqFpy0jQaEC4ux7JcoTwykuq3g6cwZpKE6ORyB335SXjw2J8OdA.midi"))
     print(tokens)
-    #midi = tokeniser.decode(tokens, output_path=r"data_pipeline\data\midi_out\test.midi")
+    # midi = tokeniser.decode(tokens, output_path=r"data_pipeline\data\midi_out\test.midi")

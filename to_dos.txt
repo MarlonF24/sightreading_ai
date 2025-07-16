@@ -1,13 +1,14 @@
 - folder -> dir
-- fix musicxml to midi zero division errors
+- fix musicxml midi zero division errors
 - update complexities, include key/tempo... changes
 - when decoding tokens, set instruments to piano for both hands: 
     midi = tokenizer.decode(token_sequence)
     for instrument in midi.instruments:
         instrument.program = 0  # Program 0 = Acoustic Grand Piano
-- include metadata in tokens, overwork metadata
+- overwork metadata
 - maybe make all conversion function init parameters arguments of music pipeline function in pipeline.py
 - test model and adjust weights 
-- test chord tokens
 - organise imports to functions throughout
 - exception catchers for new conversion functions
+- move tokeniser config, mabye whole tokeniser out of conversion functions into separate script in \tokenisation
+- overwork error message for failed transcription via info log

@@ -1,8 +1,57 @@
-import music21
+from importlib.metadata import metadata
+import music21, miditok
 from typing import *
 from dataclasses import dataclass
 from functools import cached_property
 import music21.stream.base
+
+
+TIME_SIGNATURES = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}
+CLEFS = ['G', 'F']
+MAX_BARS = 34
+PITCH_RANGE = (21, 108)  # MIDI note numbers for piano range (A0 to C8)
+
+TOKENISER_CONFIG = miditok.classes.TokenizerConfig(use_programs=True, 
+                                            use_time_signatures=True,
+                                            pitch_range=PITCH_RANGE,
+                                            #use_chords=True,
+                                            use_rests=True,
+                                            time_signature_range=TIME_SIGNATURES,
+                                            #chord_tokens_with_root_note=True,
+                                            #chord_unknown=(2, 4),
+                                            one_token_stream_for_programs=True)
+    
+
+
+
+tokeniser = miditok.REMI(tokenizer_config=TOKENISER_CONFIG, max_bar_embedding=MAX_BARS)
+# print(tokeniser._vocab_base)
+
+def add_key_signatures_to_vocab(tokeniser) -> None:
+    l = len(tokeniser._vocab_base)
+    for i in range(-7, 8):
+        tokeniser._vocab_base[f'KeySig_{i}'] = l + 7 + i
+
+def add_clefs_to_vocab(tokeniser) -> None:
+    l = len(tokeniser._vocab_base)
+    for i in range(0, 2):
+        tokeniser._vocab_base[f'Clef_{CLEFS[i]}'] = l + i
+
+def add_complexities_to_vocab(tokeniser) -> None:
+    l = len(tokeniser._vocab_base)
+    for i in range(1, 11):
+        tokeniser._vocab_base[f'Dens_{i}'] = l + i
+        tokeniser._vocab_base[f'Dur_{i}'] = l + 10 + i
+        tokeniser._vocab_base[f'Int_{i}'] = l + 20 + i
+
+
+add_key_signatures_to_vocab(tokeniser)
+add_clefs_to_vocab(tokeniser)
+add_complexities_to_vocab(tokeniser)
+
+# print(tokeniser._vocab_base)
+
+
 
 class Metadata:
     #weights for complexity measures
@@ -13,6 +62,8 @@ class Metadata:
     
     def __init__(self, score: music21.stream.base.Score):
         self._score: music21.stream.base.Score = score
+        if len(self._score.parts) != 2:
+            raise ValueError("Expected two staves (RH and LH), got something else.")
         
     
     @property 
@@ -99,13 +150,13 @@ class Metadata:
         return len(self.notes)
 
     @cached_property
-    def pitch_range(self) -> Tuple[str, str]:
+    def pitch_range(self) -> Tuple[music21.pitch.Pitch, music21.pitch.Pitch]:
         if self.midi_values:
-            pitch_min = music21.pitch.Pitch(midi=min(self.midi_values)).nameWithOctave
-            pitch_max = music21.pitch.Pitch(midi=max(self.midi_values)).nameWithOctave
+            pitch_min = music21.pitch.Pitch(midi=min(self.midi_values))
+            pitch_max = music21.pitch.Pitch(midi=max(self.midi_values))
             return (pitch_min, pitch_max)
-        
-        return ("C4", "C5")  # fallback
+
+        return (music21.pitch.Pitch("C4"), music21.pitch.Pitch("C5"))  # fallback
 
     
     @cached_property
@@ -135,7 +186,6 @@ class Metadata:
         avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
         return min(10, round(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
-
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
@@ -148,4 +198,46 @@ class Metadata:
             "duration_complexity": self.duration_complexity,
             "pitch_complexity": self.interval_complexity
         }
-    
+
+
+    @cached_property
+    def tokenised_data(self) -> Dict[str, str]:
+        return {
+            "key_signature": f"KeySig_{self.key_signatures[0]}",
+            "time_signature": f"TimeSig_{self.time_signatures[0]}",
+            "rh_clef": f"Clef_{self.rh_clefs[0]}",
+            "lh_clef": f"Clef_{self.lh_clefs[0]}",
+            "lowest_pitch": f"Pitch_{self.pitch_range[0].midi}",
+            "highest_pitch": f"Pitch_{self.pitch_range[1].midi}",
+            "num_measures": f"Bar_{self.num_measures}",
+            "density_complexity": f"Dens_{self.density_complexity}",
+            "duration_complexity": f"Dur_{self.duration_complexity}",
+            "interval_complexity": f"Int_{self.interval_complexity}"
+        }
+
+    @staticmethod
+    def valid_metadata(tokenised_data: Dict[str, str]) -> Tuple[bool, str]:
+        if tokenised_data["num_measures"] not in tokeniser._vocab_base:
+            return False, f"Invalid number of measures: {tokenised_data['num_measures']} not in range 1-{MAX_BARS} Bars"
+        
+        if (t := tokenised_data["time_signature"]) not in tokeniser._vocab_base:
+            return False, f"Invalid time signature: {t} not in {TIME_SIGNATURES}"
+
+        if (c := tokenised_data["rh_clef"]) not in tokeniser._vocab_base:
+            return False, f"Invalid RH clef: {c} not in {CLEFS}"
+
+        if (c := tokenised_data["lh_clef"]) not in tokeniser._vocab_base:
+            return False, f"Invalid LH clef: {c} not in {CLEFS}"
+
+        if (l := tokenised_data["lowest_pitch"]) not in tokeniser._vocab_base:
+            return False, f"Invalid lowest pitch: {l} not in MIDI range {PITCH_RANGE}"
+
+        if (h := tokenised_data["highest_pitch"]) not in tokeniser._vocab_base:
+            return False, f"Invalid highest pitch: {h} not in MIDI range {PITCH_RANGE}"
+        
+        return True, ""
+
+
+
+if __name__ == "__main__":
+    pass
