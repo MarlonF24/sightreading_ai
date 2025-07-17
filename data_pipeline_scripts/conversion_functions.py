@@ -449,7 +449,6 @@ class musicxml_to_midi(SingleFileConversionFunction):
     
 class midi_to_tokens(SingleFileConversionFunction):
     from tokenisation import tokeniser
-    tokeniser = tokeniser
 
     def skip_single_file(self, input_file, output_folder):
         return Generics.same_name_skip(input_file, output_folder)
@@ -468,11 +467,18 @@ class midi_to_tokens(SingleFileConversionFunction):
         if not isinstance(token_seq, miditok.TokSequence):
             raise ValueError("Tokenisation failed. The output is not a valid TokSequence object.")
 
-        token_seq.ids = [midi_to_tokens.tokeniser._vocab_base[token] for token in metadata.values()] + token_seq.ids
+        metadata_tokens = [token for token in metadata.values()]
 
-        # print(token_seq)
-        output_path = output_folder.joinpath(input_file.stem + ".tokens.json")
-        midi_to_tokens.tokeniser.save_tokens(tokens=token_seq, path=output_path)
+        jso = {"labels": [-100] * (1 + len(metadata_tokens)) + token_seq.ids + [-100]}
+
+        token_seq.tokens = ["BOS_None"] + metadata_tokens + token_seq.tokens + ["EOS_None"]
+
+        jso["input_ids"] = midi_to_tokens.tokeniser._tokens_to_ids(token_seq.tokens)
+        
+        output_path = output_folder.joinpath(input_file.stem + ".tokens.jsonl")
+        
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(jso, f)
 
         return [ConversionOutcome(
             input_file=input_file,
@@ -485,11 +491,4 @@ class midi_to_tokens(SingleFileConversionFunction):
 
 
 if __name__ == "__main__":
-    # print(miditok.constants.CHORD_MAPS, miditok.constants.CHORD_TOKENS_WITH_ROOT_NOTE)
-    tokeniser = midi_to_tokens.tokeniser
-    # print(tokeniser._vocab_base)
-    # print(tokeniser.pad_token_id)
-
-    tokens = tokeniser.encode(Path(r"C:\Users\marlo\sightreading_ai\data_pipeline\data\midi_in\musescore.com_classicman_clairdelune_srsltid=AfmBOoqFpy0jQaEC4ux7JcoTwykuq3g6cwZpKE6ORyB335SXjw2J8OdA.midi"))
-    print(tokens)
-    # midi = tokeniser.decode(tokens, output_path=r"data_pipeline\data\midi_out\test.midi")
+    pass

@@ -22,10 +22,10 @@ TOKENISER_CONFIG = miditok.classes.TokenizerConfig(use_programs=True,
                                             one_token_stream_for_programs=True)
     
 
-
-
 tokeniser = miditok.REMI(tokenizer_config=TOKENISER_CONFIG, max_bar_embedding=MAX_BARS)
-# print(tokeniser._vocab_base)
+# print(tokeniser.special_tokens)
+
+
 
 def add_key_signatures_to_vocab(tokeniser) -> None:
     l = len(tokeniser._vocab_base)

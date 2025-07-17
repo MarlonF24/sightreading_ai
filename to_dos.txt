@@ -10,5 +10,5 @@
 - test model and adjust weights 
 - organise imports to functions throughout
 - exception catchers for new conversion functions
-- move tokeniser config, mabye whole tokeniser out of conversion functions into separate script in \tokenisation
 - overwork error message for failed transcription via info log
+- combine jsons into jsonl -> dataset object before training (write function)
