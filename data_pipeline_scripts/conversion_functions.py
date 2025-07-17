@@ -22,6 +22,17 @@ class Generics:
             return f"{type(e).__name__}: {str(e)}"
     
     @staticmethod
+    def clear_n_terminal_lines(n: int = 1):
+        """
+        Clear the last n lines in the terminal.
+        
+        Parameters:
+            n (int): The number of lines to clear, defaults to 1.
+        """
+        sys.stdout.write(n * "\033[F\033[K")
+        sys.stdout.flush()
+
+    @staticmethod
     def mute_decorator(func: Callable):
         """
         A decorator to mute the output of the function.
@@ -461,20 +472,18 @@ class midi_to_tokens(SingleFileConversionFunction):
             return t
 
         token_seq = midi_to_tokens.tokeniser.encode(input_file)
-        sys.stdout.write(3 * "\033[A\033[2K")
-        sys.stdout.flush()
+        Generics.clear_n_terminal_lines(3)
 
         if not isinstance(token_seq, miditok.TokSequence):
             raise ValueError("Tokenisation failed. The output is not a valid TokSequence object.")
 
         metadata_tokens = [token for token in metadata.values()]
 
-        jso = {"labels": [-100] * (1 + len(metadata_tokens)) + token_seq.ids + [-100]}
+        token_seq.tokens[1:1] =  metadata_tokens
 
-        token_seq.tokens = ["BOS_None"] + metadata_tokens + token_seq.tokens + ["EOS_None"]
+        jso = {"input_ids": midi_to_tokens.tokeniser._tokens_to_ids(token_seq.tokens)}
+        jso["labels"] = [-100] * (1 + len(metadata_tokens)) + token_seq.ids[1:-1] + [-100]
 
-        jso["input_ids"] = midi_to_tokens.tokeniser._tokens_to_ids(token_seq.tokens)
-        
         output_path = output_folder.joinpath(input_file.stem + ".tokens.jsonl")
         
         with output_path.open("w", encoding="utf-8") as f:

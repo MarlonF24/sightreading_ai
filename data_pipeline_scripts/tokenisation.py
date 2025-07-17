@@ -23,9 +23,13 @@ TOKENISER_CONFIG = miditok.classes.TokenizerConfig(use_programs=True,
     
 
 tokeniser = miditok.REMI(tokenizer_config=TOKENISER_CONFIG, max_bar_embedding=MAX_BARS)
-# print(tokeniser.special_tokens)
-
-
+original_encode = tokeniser.encode
+    
+def custom_encode(*args, **kwargs):
+    tok_seq = original_encode(*args, **kwargs)
+    tok_seq.tokens = ['BOS_None'] + tok_seq.tokens + ['EOS_None']
+    tok_seq.ids = [tokeniser.vocab["BOS_None"]] + tok_seq.ids + [tokeniser.vocab["EOS_None"]]
+    return tok_seq
 
 def add_key_signatures_to_vocab(tokeniser) -> None:
     l = len(tokeniser._vocab_base)
@@ -44,13 +48,12 @@ def add_complexities_to_vocab(tokeniser) -> None:
         tokeniser._vocab_base[f'Dur_{i}'] = l + 10 + i
         tokeniser._vocab_base[f'Int_{i}'] = l + 20 + i
 
-
+tokeniser.encode = custom_encode
 add_key_signatures_to_vocab(tokeniser)
 add_clefs_to_vocab(tokeniser)
 add_complexities_to_vocab(tokeniser)
 
 # print(tokeniser._vocab_base)
-
 
 
 class Metadata:
