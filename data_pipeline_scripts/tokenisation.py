@@ -1,9 +1,6 @@
-from importlib.metadata import metadata
 import music21, miditok
 from typing import *
-from dataclasses import dataclass
 from functools import cached_property
-import music21.stream.base
 
 
 TIME_SIGNATURES = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}
@@ -54,7 +51,6 @@ add_clefs_to_vocab(tokeniser)
 add_complexities_to_vocab(tokeniser)
 
 # print(tokeniser._vocab_base)
-
 
 class Metadata:
     #weights for complexity measures
@@ -239,7 +235,6 @@ class Metadata:
             return False, f"Invalid highest pitch: {h} not in MIDI range {PITCH_RANGE}"
         
         return True, ""
-
 
 
 if __name__ == "__main__":

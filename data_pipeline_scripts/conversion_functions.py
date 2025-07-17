@@ -1,6 +1,6 @@
-import warnings, music21, subprocess, json, zipfile, os, shutil, miditok, io, sys
 from typing import *
 from pathlib import Path
+from pyparsing import cached_property
 from conversion_func_infrastructure import *
        
 class Generics:
@@ -29,6 +29,8 @@ class Generics:
         Parameters:
             n (int): The number of lines to clear, defaults to 1.
         """
+        import sys
+        
         sys.stdout.write(n * "\033[F\033[K")
         sys.stdout.flush()
 
@@ -153,6 +155,8 @@ class Generics:
         Returns:
             List[ConversionOutcome]: A list of ConversionOutcome objects representing the outcome of the conversion process.
         """
+        import subprocess
+        
         try:
             result = subprocess.run(command, capture_output=True, text=True)
             return interpreter(result.returncode, result.stderr.strip(), result.stdout.strip(), input_path, output_folder)
@@ -187,6 +191,8 @@ class Generics:
         Returns:
             List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
         """
+        import warnings
+
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")
             try:
@@ -228,10 +234,14 @@ class pdf_to_mxl(BatchConversionFunction):
             do_clean_up (bool): _description_, defaults to True
     
         """        
-        self.audiveris_app_folder = audiveris_app_folder
+        self._audiveris_app_folder = audiveris_app_folder
         self.do_clean_up = do_clean_up
 
     @property
+    def audiveris_app_folder(self) -> FolderPath:
+        return self._audiveris_app_folder
+
+    @cached_property
     def classpath(self) -> str:   
         return ";".join([str(jar_file) for jar_file in self.audiveris_app_folder.glob("*.jar")])
 
@@ -252,11 +262,11 @@ class pdf_to_mxl(BatchConversionFunction):
         Returns:
             List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
         """
-        if "Could not export since transcription did not complete successfully" in stdout:
+        if temp := "Could not export since transcription did not complete successfully" in stdout:
             return [ConversionOutcome(
                 input_file=input_file,
                 successful=False,
-                error_message="Transcription failed (caught from INFO log)."
+                error_message=temp
             )]
 
         output_files = [file for file in output_folder.glob(f"{input_file.stem}*.mxl")]
@@ -350,6 +360,8 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
             input_file (FilePath): The path to the input MXL file.
             output_file (FilePath): The path where the converted MusicML file will be saved.
         """
+        import music21
+
         score = music21.converter.parse(input_file)
         score.write('musicxml', fp=output_file)
     
@@ -368,11 +380,15 @@ class mxl_to_musicxml_unzip(SingleFileConversionFunction):
         return Generics.same_name_skip()
     
     def clean_up(self, input_file: FilePath, output_folder: FolderPath):
+        import shutil
+
         for file in output_folder.iterdir():
                 if file.suffix != '.musicxml':
                     file.unlink() if file.is_file() else shutil.rmtree(output_folder)
     
     def conversion(self, input_file, output_folder, overwrite = True):    
+        import zipfile, os
+        
         try:
             with zipfile.ZipFile(input_file, 'r') as archive:
                 name = archive.namelist()[0]
@@ -424,6 +440,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
             output_file (FilePath): The path where the converted MIDI file shall be saved. !! This address is changed to save the MIDI file and metadata in separate folders inside the original folder address.
         """
         from tokenisation import Metadata
+        import music21, json
         
         metadata_folder: FolderPath = output_file.parent.joinpath("metadata_files") 
         metadata_folder.mkdir(parents=True, exist_ok=True)  # Create metadata folder if it doesn't exist
@@ -459,19 +476,21 @@ class musicxml_to_midi(SingleFileConversionFunction):
     
     
 class midi_to_tokens(SingleFileConversionFunction):
-    from tokenisation import tokeniser
-
+    
     def skip_single_file(self, input_file, output_folder):
         return Generics.same_name_skip(input_file, output_folder)
 
     def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:    
+        from tokenisation import tokeniser
+        import miditok, json
+
         with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
             metadata = json.load(f)
 
         if t := Generics.invalid_metadata_skip(input_file, metadata):
             return t
 
-        token_seq = midi_to_tokens.tokeniser.encode(input_file)
+        token_seq = tokeniser.encode(input_file)
         Generics.clear_n_terminal_lines(3)
 
         if not isinstance(token_seq, miditok.TokSequence):
@@ -481,7 +500,7 @@ class midi_to_tokens(SingleFileConversionFunction):
 
         token_seq.tokens[1:1] =  metadata_tokens
 
-        jso = {"input_ids": midi_to_tokens.tokeniser._tokens_to_ids(token_seq.tokens)}
+        jso = {"input_ids": tokeniser._tokens_to_ids(token_seq.tokens)}
         jso["labels"] = [-100] * (1 + len(metadata_tokens)) + token_seq.ids[1:-1] + [-100]
 
         output_path = output_folder.joinpath(input_file.stem + ".tokens.jsonl")
