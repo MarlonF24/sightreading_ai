@@ -90,7 +90,7 @@ All conversions are logged via the `Log` class, which tracks statistics and writ
 ## Additional Information
 
 - **ConversionOutcome Classification**:  
-  The project includes a classification system for `ConversionOutcome` objects, helping to understand the success, warnings, and errors encountered during the conversion process. ![ConversionOutcome Classification](image.png)
+  The project includes a classification system for `ConversionOutcome` objects, helping to understand the success, warnings, and errors encountered during the conversion process. ![ConversionOutcome Classification](stuff/image.png)
 
 - **Logging**:  
   A comprehensive logging system tracks data processing and conversion stages.
