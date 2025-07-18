@@ -3,55 +3,6 @@ from typing import *
 from functools import cached_property
 
 
-TIME_SIGNATURES = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}
-CLEFS = ['G', 'F']
-MAX_BARS = 34
-PITCH_RANGE = (21, 108)  # MIDI note numbers for piano range (A0 to C8)
-
-TOKENISER_CONFIG = miditok.classes.TokenizerConfig(use_programs=True, 
-                                            use_time_signatures=True,
-                                            pitch_range=PITCH_RANGE,
-                                            #use_chords=True,
-                                            use_rests=True,
-                                            time_signature_range=TIME_SIGNATURES,
-                                            #chord_tokens_with_root_note=True,
-                                            #chord_unknown=(2, 4),
-                                            one_token_stream_for_programs=True)
-    
-
-tokeniser = miditok.REMI(tokenizer_config=TOKENISER_CONFIG, max_bar_embedding=MAX_BARS)
-original_encode = tokeniser.encode
-    
-def custom_encode(*args, **kwargs):
-    tok_seq = original_encode(*args, **kwargs)
-    tok_seq.tokens = ['BOS_None'] + tok_seq.tokens + ['EOS_None']
-    tok_seq.ids = [tokeniser.vocab["BOS_None"]] + tok_seq.ids + [tokeniser.vocab["EOS_None"]]
-    return tok_seq
-
-def add_key_signatures_to_vocab(tokeniser) -> None:
-    l = len(tokeniser._vocab_base)
-    for i in range(-7, 8):
-        tokeniser._vocab_base[f'KeySig_{i}'] = l + 7 + i
-
-def add_clefs_to_vocab(tokeniser) -> None:
-    l = len(tokeniser._vocab_base)
-    for i in range(0, 2):
-        tokeniser._vocab_base[f'Clef_{CLEFS[i]}'] = l + i
-
-def add_complexities_to_vocab(tokeniser) -> None:
-    l = len(tokeniser._vocab_base)
-    for i in range(1, 11):
-        tokeniser._vocab_base[f'Dens_{i}'] = l + i
-        tokeniser._vocab_base[f'Dur_{i}'] = l + 10 + i
-        tokeniser._vocab_base[f'Int_{i}'] = l + 20 + i
-
-tokeniser.encode = custom_encode
-add_key_signatures_to_vocab(tokeniser)
-add_clefs_to_vocab(tokeniser)
-add_complexities_to_vocab(tokeniser)
-
-# print(tokeniser._vocab_base)
-
 class Metadata:
     #weights for complexity measures
     DENSITY_COMPLEXITY_WEIGHT = 1
@@ -213,29 +164,113 @@ class Metadata:
             "duration_complexity": f"Dur_{self.duration_complexity}",
             "interval_complexity": f"Int_{self.interval_complexity}"
         }
+    
 
-    @staticmethod
-    def valid_metadata(tokenised_data: Dict[str, str]) -> Tuple[bool, str]:
-        if tokenised_data["num_measures"] not in tokeniser._vocab_base:
-            return False, f"Invalid number of measures: {tokenised_data['num_measures']} not in range 1-{MAX_BARS} Bars"
+class MyTokeniser(miditok.REMI):
+    """
+    Custom tokeniser class that extends miditok.REMI.
+    This class is used to build a tokeniser for MIDI files using the REMI scheme.
+    """
+    
+    from pathlib import Path
+    
+    TIME_SIGNATURES = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}
+    CLEFS = ['G', 'F']
+    MAX_BARS = 34
+    PITCH_RANGE = (21, 108)  # MIDI note numbers for piano range (A0 to C8)
+
+    TOKENISER_CONFIG = miditok.classes.TokenizerConfig(use_programs=True, 
+                                                use_time_signatures=True,
+                                                pitch_range=PITCH_RANGE,
+                                                #use_chords=True,
+                                                use_rests=True,
+                                                time_signature_range=TIME_SIGNATURES,
+                                                #chord_tokens_with_root_note=True,
+                                                #chord_unknown=(2, 4),
+                                                one_token_stream_for_programs=True)  
+    
+    
+    def __init__(self):
+        super().__init__(tokenizer_config=MyTokeniser.TOKENISER_CONFIG, max_bar_embedding=MyTokeniser.MAX_BARS)
+        self.add_key_signatures_to_vocab()
+        self.add_clefs_to_vocab()
+        self.add_complexities_to_vocab()
+
+    def encode(self, score, encode_ids = True, no_preprocess_score = False, attribute_controls_indexes = None):
+        tok_seq = super().encode(score, encode_ids, no_preprocess_score, attribute_controls_indexes)
+        tok_seq.tokens = ['BOS_None'] + tok_seq.tokens + ['EOS_None']
+        tok_seq.ids = [self.vocab["BOS_None"]] + tok_seq.ids + [self.vocab["EOS_None"]]
+        return tok_seq
+  
+
+    def create_training_json(self, metadata: Metadata, tok_seq: miditok.TokSequence) -> dict:
+        metadata_tokens = [token for token in metadata.values()]
+
+        tok_seq.tokens[1:1] =  metadata_tokens
+
+        json = {"input_ids": self._tokens_to_ids(tok_seq.tokens)}
+        json["labels"] = [-100] * (1 + len(metadata_tokens)) + tok_seq.ids[1:-1] + [-100]
+        json["tokeniser_hash"] = hash(self)
+
+        return json
+
+    def add_key_signatures_to_vocab(self) -> None:
+        l = len(self._vocab_base)
+        for i in range(-7, 8):
+            self._vocab_base[f'KeySig_{i}'] = l + 7 + i
+
+    def add_clefs_to_vocab(self) -> None:
+        l = len(self._vocab_base)
+        for i in range(0, 2):
+            self._vocab_base[f'Clef_{self.CLEFS[i]}'] = l + i
+
+    def add_complexities_to_vocab(self) -> None:
+        l = len(self._vocab_base)
+        for i in range(1, 11):
+            self._vocab_base[f'Dens_{i}'] = l + i
+            self._vocab_base[f'Dur_{i}'] = l + 10 + i
+            self._vocab_base[f'Int_{i}'] = l + 20 + i
+
+    def __hash__(self) -> int:
+        import hashlib
+        config_str = repr(self.config)
+        vocab_str = repr(self.vocab)
+        combined = config_str + vocab_str 
+        return int(hashlib.sha256(combined.encode('utf-8')).hexdigest(), 16)
+    
+
+    def valid_metadata(self, tokenised_data: Metadata) -> Tuple[bool, str]:
+        res = ""
         
-        if (t := tokenised_data["time_signature"]) not in tokeniser._vocab_base:
-            return False, f"Invalid time signature: {t} not in {TIME_SIGNATURES}"
+        if tokenised_data["num_measures"] not in self.vocab:
+            res += f"Invalid number of measures: {tokenised_data['num_measures']} not in range 1-{self.MAX_BARS} Bars\n"
 
-        if (c := tokenised_data["rh_clef"]) not in tokeniser._vocab_base:
-            return False, f"Invalid RH clef: {c} not in {CLEFS}"
+        if (t := tokenised_data["time_signature"]) not in self.vocab:
+            res += f"Invalid time signature: {t} not in {self.TIME_SIGNATURES} Time Signatures\n"
 
-        if (c := tokenised_data["lh_clef"]) not in tokeniser._vocab_base:
-            return False, f"Invalid LH clef: {c} not in {CLEFS}"
+        if (c := tokenised_data["rh_clef"]) not in self.vocab:
+            res += f"Invalid RH clef: {c} not in {self.CLEFS} Clefs\n"
 
-        if (l := tokenised_data["lowest_pitch"]) not in tokeniser._vocab_base:
-            return False, f"Invalid lowest pitch: {l} not in MIDI range {PITCH_RANGE}"
+        if (c := tokenised_data["lh_clef"]) not in self.vocab:
+            res += f"Invalid LH clef: {c} not in {self.CLEFS} Clefs\n"
 
-        if (h := tokenised_data["highest_pitch"]) not in tokeniser._vocab_base:
-            return False, f"Invalid highest pitch: {h} not in MIDI range {PITCH_RANGE}"
+        if (l := tokenised_data["lowest_pitch"]) not in self.vocab:
+            res += f"Invalid lowest pitch: {l} not in MIDI range {self.PITCH_RANGE}\n"
+
+        if (h := tokenised_data["highest_pitch"]) not in self.vocab:
+            res += f"Invalid highest pitch: {h} not in MIDI range {self.PITCH_RANGE}\n"
+
+        if res:
+            return False, res
         
         return True, ""
 
 
+
+
 if __name__ == "__main__":
-    pass
+    tokeniser1 = MyTokeniser()
+    #MyTokeniser.TOKENISER_CONFIG.use_programs = False  # Example of modifying the config
+    tokeniser2 = MyTokeniser()
+    print(f"Tokeniser 1 hash: {hash(tokeniser1)}")
+    print(f"Tokeniser 2 hash: {hash(tokeniser2)}")

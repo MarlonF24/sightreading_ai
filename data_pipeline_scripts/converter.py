@@ -1,10 +1,10 @@
 from __future__ import annotations
 import os, datetime
 from typing import *
-from pipeline import *
+from data_pipeline_scripts.pipeline import *
 from pathlib import Path
-from conversion_func_infrastructure import *
-from conversion_func_infrastructure import _ConversionFunction
+from data_pipeline_scripts.conversion_func_infrastructure import *
+from data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
 
 
 class Converter():
@@ -468,4 +468,4 @@ class Log():
 if __name__ == "__main__":
     pipeline = construct_music_pipeline()
     converter = Converter(pipeline)
-    converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens"], overwrite=True, batch_if_possible=True)
+    converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens_in"], overwrite=True, batch_if_possible=True)

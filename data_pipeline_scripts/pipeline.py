@@ -1,9 +1,10 @@
 from __future__ import annotations
-import conversion_functions
+import data_pipeline_scripts.conversion_functions as conversion_functions
 from typing import *
 from pathlib import Path
-from conversion_func_infrastructure import *
-from conversion_func_infrastructure import _ConversionFunction
+from data_pipeline_scripts.conversion_func_infrastructure import *
+from data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
+from tokeniser.tokeniser import MyTokeniser
 
 
 class PipelineStage():
@@ -286,20 +287,20 @@ class Pipeline():
         return res
     
 
-def construct_music_pipeline(musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_folder: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
+def construct_music_pipeline(tokeniser: MyTokeniser, musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_folder: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
     #pdf_out = PipelineStage("musicxml_out" , ".musicxml", None)
     #musicxml_out = PipelineStage("musicxml_out" , ".musicxml", midi_in)
     #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
     
-    tokens = PipelineStage("tokens",".json", {})
-    midi_in = PipelineStage("midi_in",".midi", {tokens: conversion_functions.midi_to_tokens()})
-    musicxml_in = PipelineStage("musicxml_in" , ".musicxml", {midi_in: conversion_functions.musicxml_to_midi()})
+    tokens_in = PipelineStage("tokens_in",".json", {})
+    midi_in = PipelineStage("midi_in",".midi", {tokens_in: conversion_functions.midi_to_tokens(tokeniser)})
+    musicxml_in = PipelineStage("musicxml_in" , ".musicxml", {midi_in: conversion_functions.musicxml_to_midi(tokeniser)})
     mxl_in = PipelineStage("mxl_in", ".mxl", {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
     pdf_in = PipelineStage("pdf_in", ".pdf", {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_folder=Path(audiveris_app_folder))})
-    return Pipeline(tokens, midi_in, musicxml_in, mxl_in, pdf_in)
+    return Pipeline(tokens_in, midi_in, musicxml_in, mxl_in, pdf_in)
 
 if __name__ == "__main__":
-    pipeline = construct_music_pipeline()
+    pipeline = construct_music_pipeline(tokeniser=MyTokeniser())
     print(pipeline)
     #print(pipeline.shortest_conversion_route("midi_in", "tokens"))
 

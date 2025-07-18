@@ -1,7 +1,8 @@
 from typing import *
 from pathlib import Path
 from pyparsing import cached_property
-from conversion_func_infrastructure import *
+from data_pipeline_scripts.conversion_func_infrastructure import *
+from tokeniser.tokeniser import MyTokeniser, Metadata
        
 class Generics:
     """
@@ -54,9 +55,8 @@ class Generics:
 
 
     @staticmethod
-    def invalid_metadata_skip(input_file: FilePath, tokenised_data: Dict[str, str]) -> List[ConversionOutcome]:
-        from tokenisation import Metadata
-        b, err = Metadata.valid_metadata(tokenised_data)
+    def invalid_metadata_skip(input_file: FilePath, tokenised_data: Dict[str, str], tokeniser: MyTokeniser) -> List[ConversionOutcome]:
+        b, err = tokeniser.valid_metadata(tokenised_data)
         if not b:
             return [ConversionOutcome(
                 input_file=input_file,
@@ -423,7 +423,13 @@ class musicxml_to_midi(SingleFileConversionFunction):
 
     Inherits from SingleFileConversionFunction.
     """
-    
+
+    def __init__(self, tokeniser: MyTokeniser):
+        """
+        Initialise a new instance of the musicxml_to_midi class.
+        """
+        self.tokeniser = tokeniser
+
     def skip_single_file(self, input_file, output_folder):
         return Generics.same_name_skip()
 
@@ -439,7 +445,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
             input_file (FilePath): The path to the input MusicXML file.
             output_file (FilePath): The path where the converted MIDI file shall be saved. !! This address is changed to save the MIDI file and metadata in separate folders inside the original folder address.
         """
-        from tokenisation import Metadata
+        from tokeniser.tokeniser import Metadata
         import music21, json
         
         metadata_folder: FolderPath = output_file.parent.joinpath("metadata_files") 
@@ -454,7 +460,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         
         metadata = Metadata(score)
 
-        if t := Generics.invalid_metadata_skip(input_file, metadata.tokenised_data):
+        if t := Generics.invalid_metadata_skip(input_file, metadata.tokenised_data, self.tokeniser):
             return t
 
         lh = score.parts[1]
@@ -477,33 +483,36 @@ class musicxml_to_midi(SingleFileConversionFunction):
     
 class midi_to_tokens(SingleFileConversionFunction):
     
+    def __init__(self, tokeniser: MyTokeniser):
+        """
+        Initialise a new instance of the midi_to_tokens class.
+        
+        Parameters:
+            tokeniser (MyTokeniser): An instance of MyTokeniser used for encoding MIDI files into tokens.
+        """
+        self.tokeniser = tokeniser
+
     def skip_single_file(self, input_file, output_folder):
         return Generics.same_name_skip(input_file, output_folder)
 
     def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:    
-        from tokenisation import tokeniser
         import miditok, json
 
         with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
             metadata = json.load(f)
 
-        if t := Generics.invalid_metadata_skip(input_file, metadata):
+        if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
             return t
 
-        token_seq = tokeniser.encode(input_file)
+        token_seq = self.tokeniser.encode(input_file)
         Generics.clear_n_terminal_lines(3)
 
         if not isinstance(token_seq, miditok.TokSequence):
             raise ValueError("Tokenisation failed. The output is not a valid TokSequence object.")
 
-        metadata_tokens = [token for token in metadata.values()]
+        jso = self.tokeniser.create_training_json(metadata, token_seq)
 
-        token_seq.tokens[1:1] =  metadata_tokens
-
-        jso = {"input_ids": tokeniser._tokens_to_ids(token_seq.tokens)}
-        jso["labels"] = [-100] * (1 + len(metadata_tokens)) + token_seq.ids[1:-1] + [-100]
-
-        output_path = output_folder.joinpath(input_file.stem + ".tokens.jsonl")
+        output_path = output_folder.joinpath(input_file.stem + ".tokens.json")
         
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(jso, f)

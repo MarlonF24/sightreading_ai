@@ -10,3 +10,5 @@
 - exception catchers for new conversion functions
 - combine jsons into jsonl -> dataset object before training (write function)
 - documentation
+- overwork training
+- centralise hardcoding in a main.py
