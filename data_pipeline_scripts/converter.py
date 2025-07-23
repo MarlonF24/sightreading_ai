@@ -258,11 +258,8 @@ class Log():
         self.start_stage_folder_path: FolderPath = self.converter.data_folder_map[start_stage]
         self.target_stage_folder_path: FolderPath = self.converter.data_folder_map[target_stage]
         self.text: List[str] = [self.path.name + f"\n {self.start_stage_folder_path} -> {self.target_stage_folder_path}" + 2 * "\n"]
-        
-        self.num_total_files: int = 0  
-        for _ in self.converter.data_folder_map[start_stage].glob(f"*{start_stage.extension}"):
-            self.num_total_files += 1
 
+        self.num_total_files: int = len(list(self.converter.data_folder_map[start_stage].glob(f"*{start_stage.extension}")))
         self.num_attempted: int = 0
         self.num_skipped: int = 0 
         self.num_successful: int = 0 

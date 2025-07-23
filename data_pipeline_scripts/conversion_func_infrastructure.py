@@ -58,7 +58,7 @@ class SingleFileConversionFunction(ABC):
         ... 
 
     @abstractmethod
-    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]: 
+    def conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]: 
         """
         Performs the single-file conversion operation.
 
@@ -113,7 +113,7 @@ class SingleFileConversionFunction(ABC):
                 return skip
         
         try:
-            return self.conversion(input_file, output_folder, overwrite)
+            return self.conversion(input_file, output_folder)
         finally:
             self.clean_up(input_file, output_folder)
 

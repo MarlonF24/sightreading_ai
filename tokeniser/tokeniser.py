@@ -1,7 +1,8 @@
+
 import music21, miditok
 from typing import *
-from functools import cached_property
-
+from functools import cached_property, wraps
+from pathlib import Path
 
 class Metadata:
     #weights for complexity measures
@@ -165,6 +166,42 @@ class Metadata:
             "interval_complexity": f"Int_{self.interval_complexity}"
         }
     
+class MyTokeniserConfig(miditok.classes.TokenizerConfig):
+        """
+        Custom configuration for the MyTokeniser.
+        This class inherits from miditok.classes.TokenizerConfig and can be extended if needed.
+        """
+        import miditok.constants
+        
+        CONFIG = {
+            "use_programs": True,
+            "use_time_signatures": True,
+            # "use_chords": True,
+            "use_rests": True,
+            # "chord_tokens_with_root_note": True,
+            # "chord_unknown": (2, 4),
+            "one_token_stream_for_programs": True,
+            "special_tokens": miditok.constants.SPECIAL_TOKENS # dont change
+        }
+        
+        def __init__(self, 
+                     time_signature_range: dict[int, list[int]] = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}, 
+                     clefs: list[str] = ['G', 'F'],
+                     pitch_range: tuple[int, int] = (21, 108),
+                     max_bars: int = 33):
+            """
+            Initialize the MyTokeniserConfig with custom parameters.
+            :param time_signature_range: Dictionary defining valid time signatures.
+            :param clefs: List of valid clefs.
+            :param pitch_range: Tuple defining the MIDI pitch range.
+            :param max_bars: Maximum number of bars for embedding.
+            """
+            super().__init__(**self.CONFIG,
+                             pitch_range=pitch_range,
+                             clefs=clefs,
+                             time_signature_range=time_signature_range,
+                             max_bar_embedding=max_bars)
+                   
 
 class MyTokeniser(miditok.REMI):
     """
@@ -172,105 +209,181 @@ class MyTokeniser(miditok.REMI):
     This class is used to build a tokeniser for MIDI files using the REMI scheme.
     """
     
-    from pathlib import Path
-    
-    TIME_SIGNATURES = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}
-    CLEFS = ['G', 'F']
-    MAX_BARS = 34
-    PITCH_RANGE = (21, 108)  # MIDI note numbers for piano range (A0 to C8)
-
-    TOKENISER_CONFIG = miditok.classes.TokenizerConfig(use_programs=True, 
-                                                use_time_signatures=True,
-                                                pitch_range=PITCH_RANGE,
-                                                #use_chords=True,
-                                                use_rests=True,
-                                                time_signature_range=TIME_SIGNATURES,
-                                                #chord_tokens_with_root_note=True,
-                                                #chord_unknown=(2, 4),
-                                                one_token_stream_for_programs=True)  
     
     
-    def __init__(self):
-        super().__init__(tokenizer_config=MyTokeniser.TOKENISER_CONFIG, max_bar_embedding=MyTokeniser.MAX_BARS)
-        self.add_key_signatures_to_vocab()
-        self.add_clefs_to_vocab()
-        self.add_complexities_to_vocab()
+    
+    def __init__(self, tokenizer_config: MyTokeniserConfig = MyTokeniserConfig(), params: Optional[Path] = None):
+        
+        super().__init__(tokenizer_config=tokenizer_config, params=params)
+        
+        self.bos_token = 'BOS_None'
+        self.eos_token = 'EOS_None'
+        self.pad_token = 'PAD_None'
 
-    def encode(self, score, encode_ids = True, no_preprocess_score = False, attribute_controls_indexes = None):
-        tok_seq = super().encode(score, encode_ids, no_preprocess_score, attribute_controls_indexes)
-        tok_seq.tokens = ['BOS_None'] + tok_seq.tokens + ['EOS_None']
-        tok_seq.ids = [self.vocab["BOS_None"]] + tok_seq.ids + [self.vocab["EOS_None"]]
-        return tok_seq
-  
+        # trained tokenisers should have their whole vocab initialised again,
+        # untrained ones get theirs created again, without our metadata tokens        
 
-    def create_training_json(self, metadata: Metadata, tok_seq: miditok.TokSequence) -> dict:
-        metadata_tokens = [token for token in metadata.values()]
+        if not self.is_trained:
+            self.add_key_signatures_to_vocab()
+            self.add_clefs_to_vocab()
+            self.add_complexities_to_vocab()
 
-        tok_seq.tokens[1:1] =  metadata_tokens
 
-        json = {"input_ids": self._tokens_to_ids(tok_seq.tokens)}
-        json["labels"] = [-100] * (1 + len(metadata_tokens)) + tok_seq.ids[1:-1] + [-100]
-        json["tokeniser_hash"] = hash(self)
+    def encode_with_metadata(self, input_file: Path, tokenised_metadata: dict) -> dict:
+        metadata_seq = miditok.TokSequence(list(tokenised_metadata.values()))
+        self.complete_sequence(metadata_seq, complete_bytes=True)
+        self.encode_token_ids(metadata_seq)
 
-        return json
+        tok_seq = self.encode(input_file, encode_ids=True, no_preprocess_score=False, attribute_controls_indexes=None)
+
+        
+        return {"input_ids": metadata_seq.ids + tok_seq.ids, "labels": tok_seq.ids, "tokeniser_hash": self.hexa_hash}
+
+
+    def train_BPE(self, data_folder: Path):
+        """
+        Train the tokeniser on a folder of MIDI files.
+        This method will build the vocabulary based on the MIDI files in the specified folder.
+        """
+        # from data_pipeline_scripts.conversion_functions import Generics
+
+        self.train(vocab_size=self.vocab_size * 2, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, list(data_folder.glob("*.midi"))))
+        
+        # Generics.clear_n_terminal_lines(2)
+
+
+    def save_with_hash(self, path: Path):
+        """
+        Save the tokeniser to a file with a hash based on its configuration and vocabulary.
+        This method will create a unique filename based on the tokeniser's configuration and vocabulary.
+        """
+        path = path.joinpath(f"tokeniser_{self.hexa_hash}.json")
+        self.save_pretrained(path)
+        print(f"Tokeniser saved to {path}")
+    
 
     def add_key_signatures_to_vocab(self) -> None:
-        l = len(self._vocab_base)
         for i in range(-7, 8):
-            self._vocab_base[f'KeySig_{i}'] = l + 7 + i
+            self.add_to_vocab(f'KeySig_{i}')
+
 
     def add_clefs_to_vocab(self) -> None:
-        l = len(self._vocab_base)
-        for i in range(0, 2):
-            self._vocab_base[f'Clef_{self.CLEFS[i]}'] = l + i
+        for clef in self.config.additional_params["clefs"]:
+            self.add_to_vocab(f'Clef_{clef}')
+
 
     def add_complexities_to_vocab(self) -> None:
-        l = len(self._vocab_base)
         for i in range(1, 11):
-            self._vocab_base[f'Dens_{i}'] = l + i
-            self._vocab_base[f'Dur_{i}'] = l + 10 + i
-            self._vocab_base[f'Int_{i}'] = l + 20 + i
+            self.add_to_vocab(f'Dens_{i}')
+            self.add_to_vocab(f'Dur_{i}')
+            self.add_to_vocab(f'Int_{i}')
 
-    def __hash__(self) -> int:
+    @property
+    def hexa_hash(self) -> str:
         import hashlib
-        config_str = repr(self.config)
-        vocab_str = repr(self.vocab)
-        combined = config_str + vocab_str 
-        return int(hashlib.sha256(combined.encode('utf-8')).hexdigest(), 16)
-    
+
+        return hashlib.sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
+
 
     def valid_metadata(self, tokenised_data: Metadata) -> Tuple[bool, str]:
         res = ""
         
         if tokenised_data["num_measures"] not in self.vocab:
-            res += f"Invalid number of measures: {tokenised_data['num_measures']} not in range 1-{self.MAX_BARS} Bars\n"
+            res += f"Invalid number of measures: {tokenised_data['num_measures']} not in range 1-{self.config.additional_params['max_bar_embedding']} Bars\n"
 
         if (t := tokenised_data["time_signature"]) not in self.vocab:
-            res += f"Invalid time signature: {t} not in {self.TIME_SIGNATURES} Time Signatures\n"
+            res += f"Invalid time signature: {t} not in {self.config.time_signature_range} Time Signatures\n"
 
         if (c := tokenised_data["rh_clef"]) not in self.vocab:
-            res += f"Invalid RH clef: {c} not in {self.CLEFS} Clefs\n"
+            res += f"Invalid RH clef: {c} not in {self.config.additional_params['clefs']} Clefs\n"
 
         if (c := tokenised_data["lh_clef"]) not in self.vocab:
-            res += f"Invalid LH clef: {c} not in {self.CLEFS} Clefs\n"
+            res += f"Invalid LH clef: {c} not in {self.config.additional_params['clefs']} Clefs\n"
 
         if (l := tokenised_data["lowest_pitch"]) not in self.vocab:
-            res += f"Invalid lowest pitch: {l} not in MIDI range {self.PITCH_RANGE}\n"
+            res += f"Invalid lowest pitch: {l} not in MIDI range {self.config.pitch_range}\n"
 
         if (h := tokenised_data["highest_pitch"]) not in self.vocab:
-            res += f"Invalid highest pitch: {h} not in MIDI range {self.PITCH_RANGE}\n"
+            res += f"Invalid highest pitch: {h} not in MIDI range {self.config.pitch_range}\n"
 
         if res:
             return False, res
         
         return True, ""
 
+    @classmethod
+    def from_pretrained(
+        cls: Type["MyTokeniser"],
+        pretrained_model_name_or_path: Union[str, Path],
+        *,
+        force_download: bool = False,
+        resume_download: Optional[bool] = None,
+        proxies: Optional[Dict] = None,
+        token: Optional[Union[str, bool]] = None,
+        cache_dir: Optional[Union[str, Path]] = None,
+        local_files_only: bool = False,
+        revision: Optional[str] = None,
+        **model_kwargs,
+    ) -> "MyTokeniser":
+        
+        """
+        Download a model from the Huggingface Hub and instantiate it.
 
+        Args:
+            pretrained_model_name_or_path (`str`, `Path`):
+                - Either the `model_id` (string) of a model hosted on the Hub, e.g. `bigscience/bloom`.
+                - Or a path to a `directory` containing model weights saved using
+                    [`~transformers.PreTrainedModel.save_pretrained`], e.g., `../path/to/my_model_directory/`.
+            revision (`str`, *optional*):
+                Revision of the model on the Hub. Can be a branch name, a git tag or any commit id.
+                Defaults to the latest commit on `main` branch.
+            force_download (`bool`, *optional*, defaults to `False`):
+                Whether to force (re-)downloading the model weights and configuration files from the Hub, overriding
+                the existing cache.
+            proxies (`Dict[str, str]`, *optional*):
+                A dictionary of proxy servers to use by protocol or endpoint, e.g., `{'http': 'foo.bar:3128',
+                'http://hostname': 'foo.bar:4012'}`. The proxies are used on every request.
+            token (`str` or `bool`, *optional*):
+                The token to use as HTTP bearer authorization for remote files. By default, it will use the token
+                cached when running `huggingface-cli login`.
+            cache_dir (`str`, `Path`, *optional*):
+                Path to the folder where cached files are stored.
+            local_files_only (`bool`, *optional*, defaults to `False`):
+                If `True`, avoid downloading the file and return the path to the local cached file if it exists.
+            model_kwargs (`Dict`, *optional*):
+                Additional kwargs to pass to the model during initialization.
+        """
 
+        tokeniser = super().from_pretrained(
+            pretrained_model_name_or_path,
+            force_download=force_download,
+            resume_download=resume_download,
+            proxies=proxies,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+            revision=revision,
+            **model_kwargs,
+        )
+        if not isinstance(tokeniser, MyTokeniser):
+            raise ValueError(f"The loaded tokeniser is not an instance of MyTokeniser, but {type(tokeniser)}")
+        return tokeniser
+
+    def _load_from_json(self, file_path):
+        import json
+        # this function is called when an instance is created from a JSON file via the params argument of the init,
+        # here we just check that the loaded tokeniser is an instance of MyTokeniser
+        
+        with Path(file_path).open() as param_file:
+            params = json.load(param_file)
+
+        if params["tokenization"] != self.__class__.__name__:
+            raise ValueError(f"The loaded tokeniser is not an instance of MyTokeniser, but {params['tokenization']}")
+        
+        super()._load_from_json(file_path)
 
 if __name__ == "__main__":
-    tokeniser1 = MyTokeniser()
-    #MyTokeniser.TOKENISER_CONFIG.use_programs = False  # Example of modifying the config
-    tokeniser2 = MyTokeniser()
-    print(f"Tokeniser 1 hash: {hash(tokeniser1)}")
-    print(f"Tokeniser 2 hash: {hash(tokeniser2)}")
+    pass
+    #print(tokeniser.vocab_model)
+    # print(tokeniser.config.to_dict())
+

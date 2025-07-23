@@ -2,7 +2,7 @@ from typing import *
 from pathlib import Path
 from pyparsing import cached_property
 from data_pipeline_scripts.conversion_func_infrastructure import *
-from tokeniser.tokeniser import MyTokeniser, Metadata
+from tokeniser.tokeniser import MyTokeniser
        
 class Generics:
     """
@@ -350,7 +350,7 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
     """
     
     def skip_single_file(self, input_file, output_folder):
-        return Generics.same_name_skip()
+        return Generics.same_name_skip(input_file, output_folder)
 
     def music21_func(self, input_file: FilePath, output_file: FilePath) -> None:
         """
@@ -365,7 +365,7 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
         score = music21.converter.parse(input_file)
         score.write('musicxml', fp=output_file)
     
-    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:
+    def conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".musicxml"), self.music21_func)
 
     
@@ -386,7 +386,7 @@ class mxl_to_musicxml_unzip(SingleFileConversionFunction):
                 if file.suffix != '.musicxml':
                     file.unlink() if file.is_file() else shutil.rmtree(output_folder)
     
-    def conversion(self, input_file, output_folder, overwrite = True):    
+    def conversion(self, input_file, output_folder):    
         import zipfile, os
         
         try:
@@ -477,7 +477,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
 
         return None
     
-    def conversion(self, input_file: FilePath, output_folder: FilePath, overwrite: bool = True) -> List[ConversionOutcome]:
+    def conversion(self, input_file: FilePath, output_folder: FilePath) -> List[ConversionOutcome]:
         return Generics.generic_music21_conversion(input_file, output_folder.joinpath(input_file.stem + ".midi"), self.music21_func)
     
     
@@ -495,7 +495,7 @@ class midi_to_tokens(SingleFileConversionFunction):
     def skip_single_file(self, input_file, output_folder):
         return Generics.same_name_skip(input_file, output_folder)
 
-    def conversion(self, input_file: FilePath, output_folder: FolderPath, overwrite: bool = True) -> List[ConversionOutcome]:    
+    def conversion(self, input_file: FilePath, output_folder: FolderPath) -> List[ConversionOutcome]:    
         import miditok, json
 
         with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
@@ -504,13 +504,8 @@ class midi_to_tokens(SingleFileConversionFunction):
         if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
             return t
 
-        token_seq = self.tokeniser.encode(input_file)
+        jso = self.tokeniser.encode_with_metadata(input_file, metadata)
         Generics.clear_n_terminal_lines(3)
-
-        if not isinstance(token_seq, miditok.TokSequence):
-            raise ValueError("Tokenisation failed. The output is not a valid TokSequence object.")
-
-        jso = self.tokeniser.create_training_json(metadata, token_seq)
 
         output_path = output_folder.joinpath(input_file.stem + ".tokens.json")
         
