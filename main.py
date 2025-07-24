@@ -7,17 +7,34 @@ from pathlib import Path
 import miditok
 
 if __name__ == "__main__":
-    tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=Path("C:/Users/marlo/sightreading_ai/tokeniser"))
+    tokeniser1 = MyTokeniser(MyTokeniserConfig(clefs=['G', 'F'],))
+    tokeniser2 = MyTokeniser(MyTokeniserConfig(clefs=['F', 'G'],))
+    print(tokeniser1.hexa_hash)
+    print(tokeniser2.hexa_hash)
 
-    pipeline = construct_music_pipeline(tokeniser)
+    
+    # tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=Path("C:/Users/marlo/sightreading_ai/tokeniser"))
 
-    converter = Converter(pipeline=pipeline)
+    # pipeline = construct_music_pipeline(tokeniser)
 
-    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["tokens_in"])
+    # converter = Converter(pipeline=pipeline)
 
-    tokeniser.save_pretrained(Path("C:/Users/marlo/sightreading_ai/model/training"))
-    MyModel.train_from_tokens_folder(
-        tokens_folder=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"),
-        tokeniser=tokeniser)
+    # converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["tokens_in"], batch_if_possible=False)
+    # tokeniser.hexa_hash
+    # tokeniser.save_pretrained(Path("C:/Users/marlo/sightreading_ai/tokeniser"))
+    # MyModel.train_from_tokens_dir(
+    #     tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"),
+    #     tokeniser=tokeniser)
+
+    # import json
+    # l = []
+    # for file in Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in").glob("*.json"):
+    
+    #     with open(file, "r") as f:
+    #         data = json.load(f)
+    #         l.append(len(data["labels"]))
+    
+    # print(f"Average length of tokens: {sum(l) / len(l)}")
+
 
 

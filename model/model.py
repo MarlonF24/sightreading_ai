@@ -27,11 +27,10 @@ class MyModel(GPT2LMHeadModel):
 
     @classmethod
     def load_or_create(cls, tokeniser: MyTokeniser) -> Tuple["MyModel", bool]:
-        import json, shutil
-        from transformers import trainer_utils
+        import  shutil
 
-        if trainer_utils.get_last_checkpoint(str(cls.TRAINING_DIR)):
-            print("Checkpoint found, loading model...")
+        if cls.TRAINING_DIR.joinpath("config.json").exists() and cls.TRAINING_DIR.joinpath("model.safetensors").exists():
+            print("Saved model found, loading model...")
 
             loaded_tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=cls.TRAINING_DIR)
 
@@ -62,12 +61,12 @@ class MyModel(GPT2LMHeadModel):
             return cls(MyModel.build_config(tokeniser)), False
 
     @classmethod
-    def train_from_tokens_folder(cls, tokens_folder: Path, tokeniser: MyTokeniser):
+    def train_from_tokens_dir(cls, tokens_dir: Path, tokeniser: MyTokeniser):
         from transformers import Trainer, TrainingArguments, trainer_utils
 
         model, loaded = cls.load_or_create(tokeniser)
         dataset = MyTokenDataset(
-            files_paths=list(tokens_folder.glob("*.json")),
+            files_paths=list(tokens_dir.glob("*.json")),
             tokeniser_hash=tokeniser.hexa_hash,
             bos_token_id=tokeniser.vocab[tokeniser.bos_token],
             eos_token_id=tokeniser.vocab[tokeniser.eos_token],
@@ -108,6 +107,6 @@ class MyModel(GPT2LMHeadModel):
             tokeniser.save_pretrained(cls.TRAINING_DIR)
 
 if __name__ == "__main__":
-    tokens_folder = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 
+    tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 
     
-    MyModel.train_from_tokens_folder(tokens_folder, MyTokeniser())
+    MyModel.train_from_tokens_dir(tokens_dir, MyTokeniser())

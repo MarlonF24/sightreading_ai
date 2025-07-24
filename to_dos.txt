@@ -1,4 +1,3 @@
-- folder -> dir
 - fix musicxml midi zero division errors
 - update complexities, include key/tempo... changes
 - when decoding tokens, set instruments to piano for both hands: 
@@ -7,10 +6,8 @@
         instrument.program = 0  # Program 0 = Acoustic Grand Piano
 - maybe make all conversion function init parameters arguments of music pipeline function in pipeline.py
 - test model and adjust weights 
-- exception catchers for new conversion functions
 - documentation
-- upload tokeniser and model to huggingface hub / maybe together
-- also think about the hash
+- upload tokeniser and model to huggingface hub / maybe together # at the end of project maybe and then give links in readme
 - centralise all hardcoding like file naming conventions like metadata file naming
 - use data augmentation from miditok
 - check hash of to_dict for false negatives
@@ -20,6 +17,7 @@
 - think about what to do with save_with_hash method for tokeniser
 - save tokenseqs that a model was trained on in database and filter out at dataset creation
 - maybe build checker to validate config format for MyModel
+- correct filter for whether we can load a model (which files need to be present?)
 - do what audiveris says on its website to enhance transcription quality
 
 

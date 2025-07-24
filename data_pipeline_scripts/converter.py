@@ -13,68 +13,68 @@ class Converter():
 
     Class Attributes:
         OWN_PATH (FilePath): The absolute file path of the current Converter class.
-        OWN_DIRECTORY (FolderPath): The directory containing the current Converter class.
-        OWN_DIRECTORY_DIRECTORY (FolderPath): The directory containing the OWN_DIRECTORY directory.
+        OWN_DIRECTORY (dirPath): The directory containing the current Converter class.
+        OWN_DIRECTORY_DIRECTORY (dirPath): The directory containing the OWN_DIRECTORY directory.
 
     Attributes:
         pipeline (Pipeline): The pipeline object representing the conversion flow.
-        data_folder_path (FolderPath): The path to the folder containing the input data files.
-        logs_folder_path (FolderPath): The path to the folder where the log files will be stored.
+        data_dir_path (dirPath): The path to the dir containing the input data files.
+        logs_dir_path (dirPath): The path to the dir where the log files will be stored.
     """
 
     OWN_PATH: FilePath = Path(os.path.abspath(__file__))
-    OWN_DIRECTORY: FolderPath = OWN_PATH.parent
+    OWN_DIRECTORY: dirPath = OWN_PATH.parent
     OWN_DIRECTORY_DIRECTORY = OWN_DIRECTORY.parent
     
     
-    def __init__(self, pipeline: Pipeline, data_folder_path: FolderPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\data"), logs_folder_path: FolderPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\logs")) -> None:
+    def __init__(self, pipeline: Pipeline, data_dir_path: dirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\data"), logs_dir_path: dirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\logs")) -> None:
         """
-        Initializes a Converter object with the given pipeline, data folder path, and logs folder path.
+        Initializes a Converter object with the given pipeline, data dir path, and logs dir path.
 
         Parameters:
             pipeline (Pipeline): The pipeline object representing the conversion flow.
-            data_folder_path (FolderPath, optional): The path to the folder containing the input data files. Defaults to the 'data' folder within the 'data_pipeline' directory.
-            logs_folder_path (FolderPath, optional): The path to the folder where the log files will be stored. Defaults to the 'logs' folder within the 'data_pipeline' directory.
+            data_dir_path (dirPath, optional): The path to the dir containing the input data files. Defaults to the 'data' dir within the 'data_pipeline' directory.
+            logs_dir_path (dirPath, optional): The path to the dir where the log files will be stored. Defaults to the 'logs' dir within the 'data_pipeline' directory.
         """
         # environment.set('musescoreDirectPNGPath', musescore_path)
-        self.logs_folder_path = logs_folder_path
-        self.data_folder_path = data_folder_path
-        os.makedirs(self.logs_folder_path, exist_ok=True)
-        os.makedirs(self.data_folder_path, exist_ok=True)
+        self.logs_dir_path = logs_dir_path
+        self.data_dir_path = data_dir_path
+        os.makedirs(self.logs_dir_path, exist_ok=True)
+        os.makedirs(self.data_dir_path, exist_ok=True)
         
         self.pipeline = pipeline
-        self.assign_data_folders()  
-        self.assign_log_folders()
+        self.assign_data_dirs()  
+        self.assign_log_dirs()
 
 
-    def assign_log_folders(self) -> None:
+    def assign_log_dirs(self) -> None:
         """
-        Assigns and creates the log folders for each conversion route in the pipeline.
+        Assigns and creates the log dirs for each conversion route in the pipeline.
 
-        The log folders are created within the logs_folder_path, and their names are based on the conversion routes.
-        Each conversion route is represented by a tuple of two PipelineStage instances, and the corresponding log folder
-        is stored in the log_folder_map dictionary.
+        The log dirs are created within the logs_dir_path, and their names are based on the conversion routes.
+        Each conversion route is represented by a tuple of two PipelineStage instances, and the corresponding log dir
+        is stored in the log_dir_map dictionary.
         """
-        self.log_folder_map: dict[Tuple[PipelineStage, PipelineStage], FolderPath] = {}
+        self.log_dir_map: dict[Tuple[PipelineStage, PipelineStage], dirPath] = {}
         for stage in self.pipeline:
             for child in stage.children:
-                path = self.logs_folder_path.joinpath(f"{stage.name}_to_{child.name}")
-                self.log_folder_map[(stage, child)] = path
+                path = self.logs_dir_path.joinpath(f"{stage.name}_to_{child.name}")
+                self.log_dir_map[(stage, child)] = path
                 path.mkdir(exist_ok=True)
 
 
-    def assign_data_folders(self) -> None:
+    def assign_data_dirs(self) -> None:
         """
-        Assigns and creates the data folders for each stage in the pipeline.
+        Assigns and creates the data dirs for each stage in the pipeline.
 
-        The data folders are created within the data_folder_path, and their names are based on the stage names.
-        Each stage is represented by a PipelineStage instance, and the corresponding data folder
-        is stored in the data_folder_map dictionary.
+        The data dirs are created within the data_dir_path, and their names are based on the stage names.
+        Each stage is represented by a PipelineStage instance, and the corresponding data dir
+        is stored in the data_dir_map dictionary.
         """
-        self.data_folder_map: dict[PipelineStage, FolderPath] = {}
+        self.data_dir_map: dict[PipelineStage, dirPath] = {}
         for stage in self.pipeline:
-            path = self.data_folder_path.joinpath(stage.name)
-            self.data_folder_map[stage] = path
+            path = self.data_dir_path.joinpath(stage.name)
+            self.data_dir_map[stage] = path
             path.mkdir(exist_ok=True)
 
 
@@ -139,8 +139,8 @@ class Converter():
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
         
         conversion_function = start_stage.children[target_stage]     
-        start_folder = self.data_folder_map[start_stage]
-        target_folder = self.data_folder_map[target_stage]
+        start_dir = self.data_dir_map[start_stage]
+        target_dir = self.data_dir_map[target_stage]
         
         log = Log(self, start_stage, target_stage)
 
@@ -149,20 +149,20 @@ class Converter():
             batch_licenced = self.batch_get_license(conversion_function) if not overwrite else True
             if batch_licenced:
                 print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
-                self.logged_batch_file_conversion(conversion_function, start_folder, target_folder, log, overwrite)
+                self.logged_batch_file_conversion(conversion_function, start_dir, target_dir, log, overwrite)
             
             else:
                 print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
             
         else:
             print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
-            self.logged_single_file_conversion(conversion_function, start_folder, target_folder, log, overwrite, start_stage.extension)
+            self.logged_single_file_conversion(conversion_function, start_dir, target_dir, log, overwrite, start_stage.extension)
 
         print(log.stats["num_successful"], "successful, successful / attempted")
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool, extension: str) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_dir: dirPath, output_dir: dirPath, log: Log, overwrite: bool, extension: str) -> None:
         """
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -174,35 +174,35 @@ class Converter():
             overwrite (bool): A flag indicating whether existing files should be overwritten.
         """
 
-        for _file in input_folder.glob(f"*{extension}"):          
+        for _file in input_dir.glob(f"*{extension}"):          
             input_file: FilePath = FilePath(_file)
             
             if isinstance(conversion_function, BatchConversionFunction):
-                outcome = conversion_function(input_file, output_folder, do_batch=False, overwrite=overwrite)
+                outcome = conversion_function(input_file, output_dir, do_batch=False, overwrite=overwrite)
             else:
-                outcome = conversion_function(input_file, output_folder, overwrite=overwrite)
+                outcome = conversion_function(input_file, output_dir, overwrite=overwrite)
             log.log(outcome)
 
         log.commit()
 
 
-    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, input_folder: FolderPath, output_folder: FolderPath, log: Log, overwrite: bool) -> None:
+    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, input_dir: dirPath, output_dir: dirPath, log: Log, overwrite: bool) -> None:
         """
         Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
         Parameters:
             conversion_function (BatchConversionFunction): The batch conversion function to be applied to the input files.
-            input_folder (FolderPath): The folder containing the input files.
-            output_folder (FolderPath): The folder where the output files will be saved.
+            input_dir (dirPath): The dir containing the input files.
+            output_dir (dirPath): The dir where the output files will be saved.
             log (Log): The log object to store the conversion outcomes.
             overwrite (bool): A flag indicating whether existing files should be overwritten.
 
-        The function retrieves the input and output folders based on the start and target stages.
-        It then calls the batch conversion function with the input and output folders, and logs the outcome.
+        The function retrieves the input and output dirs based on the start and target stages.
+        It then calls the batch conversion function with the input and output dirs, and logs the outcome.
         Finally, it commits the log.
         """
     
-        outcome = conversion_function(input_folder, output_folder, do_batch=True, overwrite=overwrite)
+        outcome = conversion_function(input_dir, output_dir, do_batch=True, overwrite=overwrite)
         log.log(outcome)
         log.commit()
 
@@ -217,8 +217,8 @@ class Log():
         target_stage (PipelineStage): The target stage of the conversion process.
         path (FilePath): The file path where the log will be saved.
         
-        start_stage_folder_path (FolderPath): The folder path where the input files for the conversion process are located.
-        target_stage_folder_path (FolderPath): The folder path where the output files for the conversion process will be saved.
+        start_stage_dir_path (dirPath): The dir path where the input files for the conversion process are located.
+        target_stage_dir_path (dirPath): The dir path where the output files for the conversion process will be saved.
         
         text (List[str]): A list to store the log messages.
         
@@ -253,13 +253,13 @@ class Log():
         self.target_stage: PipelineStage = target_stage
         self.converter: Converter = converter
 
-        self.path: FilePath = Path(self.converter.log_folder_map[(start_stage, target_stage)].joinpath(f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"))
+        self.path: FilePath = Path(self.converter.log_dir_map[(start_stage, target_stage)].joinpath(f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"))
 
-        self.start_stage_folder_path: FolderPath = self.converter.data_folder_map[start_stage]
-        self.target_stage_folder_path: FolderPath = self.converter.data_folder_map[target_stage]
-        self.text: List[str] = [self.path.name + f"\n {self.start_stage_folder_path} -> {self.target_stage_folder_path}" + 2 * "\n"]
+        self.start_stage_dir_path: dirPath = self.converter.data_dir_map[start_stage]
+        self.target_stage_dir_path: dirPath = self.converter.data_dir_map[target_stage]
+        self.text: List[str] = [self.path.name + f"\n {self.start_stage_dir_path} -> {self.target_stage_dir_path}" + 2 * "\n"]
 
-        self.num_total_files: int = len(list(self.converter.data_folder_map[start_stage].glob(f"*{start_stage.extension}")))
+        self.num_total_files: int = len(list(self.converter.data_dir_map[start_stage].glob(f"*{start_stage.extension}")))
         self.num_attempted: int = 0
         self.num_skipped: int = 0 
         self.num_successful: int = 0 
@@ -273,7 +273,7 @@ class Log():
         Returns a string representing the current progress index in the conversion process.
 
         The index is formatted as "[attempted/total]", where "attempted" is the number of files attempted to be converted,
-        and "total" is the total number of files in the starting stage folder.
+        and "total" is the total number of files in the starting stage dir.
 
         Returns:
             str: The progress index string.
@@ -401,7 +401,7 @@ class Log():
 
         Returns:
             dict: A dictionary with the following keys and their corresponding values:
-            - "num_total": The total number of files in the starting stage folder.
+            - "num_total": The total number of files in the starting stage dir.
             - "num_attempted": The number of files attempted to be converted.
             - "num_successful": A tuple containing the number of successful conversions and the percentage of successful conversions.
             - "num_skipped": A tuple containing the number of skipped conversions and the percentage of skipped conversions.
@@ -429,7 +429,7 @@ class Log():
         to the log text.
 
         The statistics include:
-        - "num_total": The total number of files in the starting stage folder.
+        - "num_total": The total number of files in the starting stage dir.
         - "num_attempted": The number of files attempted to be converted.
         - "num_successful": A tuple containing the number of successful conversions and the percentage of successful conversions.
         - "num_skipped": A tuple containing the number of skipped conversions and the percentage of skipped conversions.

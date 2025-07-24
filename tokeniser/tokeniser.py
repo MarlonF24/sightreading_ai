@@ -206,10 +206,7 @@ class MyTokeniser(miditok.REMI):
     """
     Custom tokeniser class that extends miditok.REMI.
     This class is used to build a tokeniser for MIDI files using the REMI scheme.
-    """
-    
-    
-    
+    """ 
     
     def __init__(self, tokenizer_config: MyTokeniserConfig = MyTokeniserConfig(), params: Optional[Path] = None):
         
@@ -239,26 +236,16 @@ class MyTokeniser(miditok.REMI):
         return {"input_ids": metadata_seq.ids + tok_seq.ids, "labels": tok_seq.ids, "tokeniser_hash": self.hexa_hash}
 
 
-    def train_BPE(self, data_folder: Path):
+    def train_BPE(self, data_dir: Path):
         """
-        Train the tokeniser on a folder of MIDI files.
-        This method will build the vocabulary based on the MIDI files in the specified folder.
+        Train the tokeniser on a dir of MIDI files.
+        This method will build the vocabulary based on the MIDI files in the specified dir.
         """
         # from data_pipeline_scripts.conversion_functions import Generics
 
-        self.train(vocab_size=self.vocab_size * 2, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, list(data_folder.glob("*.midi"))))
+        self.train(vocab_size=self.vocab_size * 2, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, list(data_dir.glob("*.midi"))))
         
         # Generics.clear_n_terminal_lines(2)
-
-
-    def save_with_hash(self, path: Path):
-        """
-        Save the tokeniser to a file with a hash based on its configuration and vocabulary.
-        This method will create a unique filename based on the tokeniser's configuration and vocabulary.
-        """
-        path = path.joinpath(f"tokeniser_{self.hexa_hash}.json")
-        self.save_pretrained(path)
-        print(f"Tokeniser saved to {path}")
     
 
     def add_key_signatures_to_vocab(self) -> None:
@@ -277,8 +264,13 @@ class MyTokeniser(miditok.REMI):
             self.add_to_vocab(f'Dur_{i}')
             self.add_to_vocab(f'Int_{i}')
 
+
     @property
     def hexa_hash(self) -> str:
+        """
+        Hash is based on unsorted tokeniser json as returned by to_dict() !!! allows for false negatives !!!
+        """
+        
         import hashlib
 
         return hashlib.sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
@@ -325,33 +317,6 @@ class MyTokeniser(miditok.REMI):
         **model_kwargs,
     ) -> "MyTokeniser":
         
-        """
-        Download a model from the Huggingface Hub and instantiate it.
-
-        Args:
-            pretrained_model_name_or_path (`str`, `Path`):
-                - Either the `model_id` (string) of a model hosted on the Hub, e.g. `bigscience/bloom`.
-                - Or a path to a `directory` containing model weights saved using
-                    [`~transformers.PreTrainedModel.save_pretrained`], e.g., `../path/to/my_model_directory/`.
-            revision (`str`, *optional*):
-                Revision of the model on the Hub. Can be a branch name, a git tag or any commit id.
-                Defaults to the latest commit on `main` branch.
-            force_download (`bool`, *optional*, defaults to `False`):
-                Whether to force (re-)downloading the model weights and configuration files from the Hub, overriding
-                the existing cache.
-            proxies (`Dict[str, str]`, *optional*):
-                A dictionary of proxy servers to use by protocol or endpoint, e.g., `{'http': 'foo.bar:3128',
-                'http://hostname': 'foo.bar:4012'}`. The proxies are used on every request.
-            token (`str` or `bool`, *optional*):
-                The token to use as HTTP bearer authorization for remote files. By default, it will use the token
-                cached when running `huggingface-cli login`.
-            cache_dir (`str`, `Path`, *optional*):
-                Path to the folder where cached files are stored.
-            local_files_only (`bool`, *optional*, defaults to `False`):
-                If `True`, avoid downloading the file and return the path to the local cached file if it exists.
-            model_kwargs (`Dict`, *optional*):
-                Additional kwargs to pass to the model during initialization.
-        """
 
         tokeniser = super().from_pretrained(
             pretrained_model_name_or_path,
@@ -380,6 +345,7 @@ class MyTokeniser(miditok.REMI):
             raise ValueError(f"The loaded tokeniser is not an instance of MyTokeniser, but {params['tokenization']}")
         
         super()._load_from_json(file_path)
+    
 
 if __name__ == "__main__":
     pass
