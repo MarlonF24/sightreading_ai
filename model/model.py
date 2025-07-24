@@ -93,7 +93,6 @@ class MyModel(GPT2LMHeadModel):
             save_strategy="epoch",
             logging_dir=str(cls.TRAINING_DIR / "logs"),
             save_total_limit=3,  # Optional: keep only last 3 checkpoints
-            resume_from_checkpoint=trainer_utils.get_last_checkpoint(str(cls.TRAINING_DIR))
         )
 
         trainer = Trainer(
