@@ -8,22 +8,20 @@
 - maybe make all conversion function init parameters arguments of music pipeline function in pipeline.py
 - test model and adjust weights 
 - exception catchers for new conversion functions
-- combine jsons into jsonl -> dataset object before training (write function)
 - documentation
-- overwork training
-- completely overwork dataset preparation, padding with miditok built in classes
-- overwork when .vocab vs when _vocab_base is used
 - upload tokeniser and model to huggingface hub / maybe together
 - also think about the hash
 - centralise all hardcoding like file naming conventions like metadata file naming
 - use data augmentation from miditok
-- implement checker in mytokeniser loading that checks that the params config is valid for the class
 - check hash of to_dict for false negatives
 - think about max_tok_seq_length for dataset
 - maybe save whole tokeniser.to_dict() in model
-- build if - else to only save tokeniser again if new model was created
 - create constants file to store all formats and constants
 - think about what to do with save_with_hash method for tokeniser
+- save tokenseqs that a model was trained on in database and filter out at dataset creation
+- maybe build checker to validate config format for MyModel
+- do what audiveris says on its website to enhance transcription quality
+
 
 INFO:
     - save_pretrained is like save only with the option to push to hub

@@ -273,7 +273,7 @@ class pdf_to_mxl(BatchConversionFunction):
         
         if returncode == 0:
 
-            warnings = [f"{line.strip().split("]")[1]}" for line in stdout.split('\n') if line.strip().startswith("WARN")]
+            warnings = [f"{line.strip().split(']')[1]}" for line in stdout.split('\n') if line.strip().startswith("WARN")]
 
             return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=True, warning_messages=warnings)]
         

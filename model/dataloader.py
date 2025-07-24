@@ -22,6 +22,10 @@ class MyTokenDataset(Dataset):
             file for file in files_paths
             if json.loads(file.read_text())["tokeniser_hash"] ==self.tokeniser_hash
         ]
+        if not self.files_paths:
+            raise ValueError(f"No files found with tokeniser hash {self.tokeniser_hash}. "
+                             f"Check the tokeniser used for encoding the data.")
+        
         print(f"Filtered dataset size: {len(self.files_paths)} files (from {len(files_paths)}) with tokeniser hash {self.tokeniser_hash}")
     def __len__(self):
         return len(self.files_paths)

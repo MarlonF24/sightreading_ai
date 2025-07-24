@@ -1,5 +1,3 @@
 {
-    "code-runner.executorMap": {
-        "python": ".\\.venv\\Scripts\\python.exe -u"
-    }
+    "python.defaultInterpreterPath": ""
 }

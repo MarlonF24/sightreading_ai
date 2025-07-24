@@ -9,44 +9,38 @@ class MyModel(GPT2LMHeadModel):
     OWN_PATH = Path(__file__)
     OWN_DIR = OWN_PATH.parent
     TRAINING_DIR = OWN_DIR / "training"
+    TRAINING_DIR.mkdir(parents=True, exist_ok=True)
     
-    def __init__(self, tokeniser: MyTokeniser):
-        self.tokeniser_hash = tokeniser.hexa_hash
-        used_vocab = tokeniser.vocab_model if tokeniser.is_trained else tokeniser.vocab
 
-        config = GPT2Config(
-            vocab_size=len(used_vocab),
+    @staticmethod
+    def build_config(tokeniser: MyTokeniser) -> GPT2Config:
+        return GPT2Config(
+            vocab_size=len(tokeniser.vocab_model),
             n_embd=512,
             n_layer=6,
             n_head=8,
             bos_token_id=tokeniser.vocab[tokeniser.bos_token],
             eos_token_id=tokeniser.vocab[tokeniser.eos_token],
             pad_token_id=tokeniser.vocab[tokeniser.pad_token],
-            tokeniser_hash=self.tokeniser_hash,
+            tokeniser_hash=tokeniser.hexa_hash,
         )
-        super().__init__(config)
-
 
     @classmethod
     def load_or_create(cls, tokeniser: MyTokeniser) -> Tuple["MyModel", bool]:
         import json, shutil
+        from transformers import trainer_utils
 
-        config_path = cls.TRAINING_DIR / "config.json"
-        weights_path = cls.TRAINING_DIR / "pytorch_model.bin"
-
-        if config_path.exists() and weights_path.exists():
+        if trainer_utils.get_last_checkpoint(str(cls.TRAINING_DIR)):
             print("Checkpoint found, loading model...")
 
-            with open(config_path, "r") as f:
-                config_data = json.load(f)
-                tokeniser_hash = config_data["tokeniser_hash"]
+            loaded_tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=cls.TRAINING_DIR)
 
-            if tokeniser_hash == tokeniser.hexa_hash:
+            if loaded_tokeniser.hexa_hash == tokeniser.hexa_hash:
                 print("✅ Tokeniser hash matches. Continuing with existing model.")
                 load = True
 
             else:
-                print(f"⚠️ Tokeniser hash mismatch. Expected: {tokeniser_hash}, Found: {tokeniser.hexa_hash}")
+                print(f"⚠️ Tokeniser hash mismatch. Expected: {tokeniser.hexa_hash}, Found: {loaded_tokeniser.hexa_hash}")
 
                 match input("Tokenizer hash does not match checkpoint model. Choose:\n"
                             "[n] Create new model with new tokeniser\n"
@@ -65,7 +59,7 @@ class MyModel(GPT2LMHeadModel):
         else:
             shutil.rmtree(cls.TRAINING_DIR, ignore_errors=True)
             cls.TRAINING_DIR.mkdir(parents=True, exist_ok=False)
-            return cls(tokeniser), False
+            return cls(MyModel.build_config(tokeniser)), False
 
     @classmethod
     def train_from_tokens_folder(cls, tokens_folder: Path, tokeniser: MyTokeniser):

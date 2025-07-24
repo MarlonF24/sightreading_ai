@@ -8,3 +8,5 @@ image.png
 sightreading_ai.code_workspace
 stuff/
 model/training/
+.conda/
+requirements.txt

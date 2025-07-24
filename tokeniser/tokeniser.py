@@ -1,4 +1,3 @@
-
 import music21, miditok
 from typing import *
 from functools import cached_property, wraps
