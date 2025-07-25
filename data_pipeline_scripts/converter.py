@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, datetime
+import os, datetime, constants
 from typing import *
 from data_pipeline_scripts.pipeline import *
 from pathlib import Path
@@ -27,21 +27,21 @@ class Converter():
     OWN_DIRECTORY_DIRECTORY = OWN_DIRECTORY.parent
     
     
-    def __init__(self, pipeline: Pipeline, data_dir_path: dirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\data"), logs_dir_path: dirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}\data_pipeline\logs")) -> None:
+    def __init__(self, pipeline: Pipeline, pipeline_dir_path: dirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}")) -> None:
         """
         Initializes a Converter object with the given pipeline, data dir path, and logs dir path.
 
         Parameters:
             pipeline (Pipeline): The pipeline object representing the conversion flow.
-            data_dir_path (dirPath, optional): The path to the dir containing the input data files. Defaults to the 'data' dir within the 'data_pipeline' directory.
-            logs_dir_path (dirPath, optional): The path to the dir where the log files will be stored. Defaults to the 'logs' dir within the 'data_pipeline' directory.
+            pipeline_dir_path (dirPath, optional): The path to the dir where the pipeline shall be located. Defaults to the parent directory of the current file's directory.
         """
         # environment.set('musescoreDirectPNGPath', musescore_path)
-        self.logs_dir_path = logs_dir_path
-        self.data_dir_path = data_dir_path
-        os.makedirs(self.logs_dir_path, exist_ok=True)
-        os.makedirs(self.data_dir_path, exist_ok=True)
-        
+        self.pipeline_dir_path: dirPath = pipeline_dir_path / constants.CONVERTER_PIPELINE_DIR_NAME
+        self.logs_dir_path: dirPath = self.pipeline_dir_path / constants.CONVERTER_LOGS_DIR_NAME
+        self.data_dir_path: dirPath = self.pipeline_dir_path / constants.CONVERTER_DATA_DIR_DEFAULT_NAME
+        self.logs_dir_path.mkdir(parents=True, exist_ok=True)
+        self.data_dir_path.mkdir(parents=True, exist_ok=True)
+
         self.pipeline = pipeline
         self.assign_data_dirs()  
         self.assign_log_dirs()
@@ -253,7 +253,7 @@ class Log():
         self.target_stage: PipelineStage = target_stage
         self.converter: Converter = converter
 
-        self.path: FilePath = Path(self.converter.log_dir_map[(start_stage, target_stage)].joinpath(f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"))
+        self.path: FilePath = Path(self.converter.log_dir_map[(start_stage, target_stage)].joinpath(f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}{constants.LOG_EXTENSION}"))
 
         self.start_stage_dir_path: dirPath = self.converter.data_dir_map[start_stage]
         self.target_stage_dir_path: dirPath = self.converter.data_dir_map[target_stage]

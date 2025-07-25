@@ -4,20 +4,12 @@
     midi = tokenizer.decode(token_sequence)
     for instrument in midi.instruments:
         instrument.program = 0  # Program 0 = Acoustic Grand Piano
-- maybe make all conversion function init parameters arguments of music pipeline function in pipeline.py
 - test model and adjust weights 
 - documentation
 - upload tokeniser and model to huggingface hub / maybe together # at the end of project maybe and then give links in readme
-- centralise all hardcoding like file naming conventions like metadata file naming
 - use data augmentation from miditok
-- check hash of to_dict for false negatives
-- think about max_tok_seq_length for dataset
-- maybe save whole tokeniser.to_dict() in model
-- create constants file to store all formats and constants
-- think about what to do with save_with_hash method for tokeniser
 - save tokenseqs that a model was trained on in database and filter out at dataset creation
-- maybe build checker to validate config format for MyModel
-- correct filter for whether we can load a model (which files need to be present?)
+- maybe make loading of MyModel and MyTokeniser bulletproof
 - do what audiveris says on its website to enhance transcription quality
 
 
@@ -25,3 +17,17 @@ INFO:
     - save_pretrained is like save only with the option to push to hub
     - from_pretrained is like initialising via params, but with option to download from hub
     - params is the full tokeniser file containing config, tokenisations, vocab (if pretrained),...
+
+    3 ways of loading/creating a MyTokeniser:
+        - pass in config object in initialiser, this is only for new models with only config
+            -> enforced that its a special config of MyTokeniserConfig class
+        - pass in tokeniser file in params in initialiser
+            -> enforced that when the file is unpacked the classes match
+        - call from_pretrained (this will actually go use the 2nd option on the classname it finds in the tokeniser file)
+            -> enforced that this returnes an object of MyTokeniser
+
+    2 ways of loading/creating a MyModel:
+        - pass in config object in initialiser
+        - call from_pretrained (this will call the 1st option)
+            -> enforced that architecture (if given) is MyModel, else also requires a tokeniser_hash attr in config 
+        

@@ -1,22 +1,20 @@
-import music21, miditok
+import music21, miditok, constants
 from typing import *
 from functools import cached_property, wraps
 from pathlib import Path
 
 class Metadata:
-    #weights for complexity measures
-    DENSITY_COMPLEXITY_WEIGHT = 1
-    DURATION_COMPLEXITY_WEIGHT = 1
-    INTERVAL_COMPLEXITY_WEIGHT = 1
-    
+    # weights for complexity measures
+    DENSITY_COMPLEXITY_WEIGHT = constants.DENSITY_COMPLEXITY_WEIGHT
+    DURATION_COMPLEXITY_WEIGHT = constants.DURATION_COMPLEXITY_WEIGHT
+    INTERVAL_COMPLEXITY_WEIGHT = constants.INTERVAL_COMPLEXITY_WEIGHT
     
     def __init__(self, score: music21.stream.base.Score):
         self._score: music21.stream.base.Score = score
         if len(self._score.parts) != 2:
             raise ValueError("Expected two staves (RH and LH), got something else.")
-        
-    
-    @property 
+
+    @property
     def score(self) -> music21.stream.base.Score:
         return self._score
 
@@ -136,6 +134,7 @@ class Metadata:
         avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
         return min(10, round(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
+    # deprecated, use data property instead
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
@@ -153,16 +152,16 @@ class Metadata:
     @cached_property
     def tokenised_data(self) -> Dict[str, str]:
         return {
-            "key_signature": f"KeySig_{self.key_signatures[0]}",
-            "time_signature": f"TimeSig_{self.time_signatures[0]}",
-            "rh_clef": f"Clef_{self.rh_clefs[0]}",
-            "lh_clef": f"Clef_{self.lh_clefs[0]}",
-            "lowest_pitch": f"Pitch_{self.pitch_range[0].midi}",
-            "highest_pitch": f"Pitch_{self.pitch_range[1].midi}",
-            "num_measures": f"Bar_{self.num_measures}",
-            "density_complexity": f"Dens_{self.density_complexity}",
-            "duration_complexity": f"Dur_{self.duration_complexity}",
-            "interval_complexity": f"Int_{self.interval_complexity}"
+            constants.KEY_SIGNATURE_FIELD: f"KeySig_{self.key_signatures[0]}",
+            constants.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signatures[0]}",
+            constants.RH_CLEF_FIELD: f"Clef_{self.rh_clefs[0]}",
+            constants.LH_CLEF_FIELD: f"Clef_{self.lh_clefs[0]}",
+            constants.LOWEST_PITCH_FIELD: f"Pitch_{self.pitch_range[0].midi}",
+            constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.pitch_range[1].midi}",
+            constants.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
+            constants.DENSITY_COMPLEXITY_FIELD: f"Dens_{self.density_complexity}",
+            constants.DURATION_COMPLEXITY_FIELD: f"Dur_{self.duration_complexity}",
+            constants.INTERVAL_COMPLEXITY_FIELD: f"Int_{self.interval_complexity}"
         }
     
 class MyTokeniserConfig(miditok.classes.TokenizerConfig):
@@ -170,38 +169,26 @@ class MyTokeniserConfig(miditok.classes.TokenizerConfig):
         Custom configuration for the MyTokeniser.
         This class inherits from miditok.classes.TokenizerConfig and can be extended if needed.
         """
-        import miditok.constants
-        
-        CONFIG = {
-            "use_programs": True,
-            "use_time_signatures": True,
-            # "use_chords": True,
-            "use_rests": True,
-            # "chord_tokens_with_root_note": True,
-            # "chord_unknown": (2, 4),
-            "one_token_stream_for_programs": True,
-            "special_tokens": miditok.constants.SPECIAL_TOKENS # dont change
-        }
-        
+    
         def __init__(self, 
-                     time_signature_range: dict[int, list[int]] = {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]}, 
-                     clefs: list[str] = ['G', 'F'],
-                     pitch_range: tuple[int, int] = (21, 108),
-                     max_bars: int = 33):
+                     time_signature_range: dict[int, list[int]] = None, 
+                     max_bars: int = None):
             """
             Initialize the MyTokeniserConfig with custom parameters.
             :param time_signature_range: Dictionary defining valid time signatures.
-            :param clefs: List of valid clefs.
             :param pitch_range: Tuple defining the MIDI pitch range.
             :param max_bars: Maximum number of bars for embedding.
             """
-            super().__init__(**self.CONFIG,
-                             pitch_range=pitch_range,
-                             clefs=clefs,
-                             time_signature_range=time_signature_range,
-                             max_bar_embedding=max_bars)
-                   
+            
+            config = constants.MYTOKENISER_BASE_CONFIG.copy()
+            if time_signature_range:
+                config[constants.TIME_SIGNATURE_RANGE_FIELD] = time_signature_range
 
+            if max_bars:
+                config[constants.MAX_BARS_FIELD] = max_bars
+
+            super().__init__(**config)
+                   
 class MyTokeniser(miditok.REMI):
     """
     Custom tokeniser class that extends miditok.REMI.
@@ -209,12 +196,14 @@ class MyTokeniser(miditok.REMI):
     """ 
     
     def __init__(self, tokenizer_config: MyTokeniserConfig = MyTokeniserConfig(), params: Optional[Path] = None):
-        
+        if not isinstance(tokenizer_config, MyTokeniserConfig):
+            raise TypeError(f"Expected MyTokeniserConfig, got {type(tokenizer_config)}")
+
         super().__init__(tokenizer_config=tokenizer_config, params=params)
-        
-        self.bos_token = 'BOS_None'
-        self.eos_token = 'EOS_None'
-        self.pad_token = 'PAD_None'
+
+        self.bos_token = constants.BOS_TOKEN
+        self.eos_token = constants.EOS_TOKEN
+        self.pad_token = constants.PAD_TOKEN
 
         # trained tokenisers should have their whole vocab initialised again,
         # untrained ones get theirs created again, without our metadata tokens        
@@ -228,12 +217,14 @@ class MyTokeniser(miditok.REMI):
     def encode_with_metadata(self, input_file: Path, tokenised_metadata: dict) -> dict:
         metadata_seq = miditok.TokSequence(list(tokenised_metadata.values()))
         self.complete_sequence(metadata_seq, complete_bytes=True)
-        self.encode_token_ids(metadata_seq)
+        if self.is_trained:
+            self.encode_token_ids(metadata_seq)
 
+        # encode_ids=true only encodes ids only if tokeniser is trained
         tok_seq = self.encode(input_file, encode_ids=True, no_preprocess_score=False, attribute_controls_indexes=None)
 
-        
-        return {"input_ids": metadata_seq.ids + tok_seq.ids, "labels": tok_seq.ids, "tokeniser_hash": self.hexa_hash}
+
+        return {constants.INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids, constants.LABELS_KEY: tok_seq.ids, constants.TOKENISER_HASH_KEY: self.hexa_hash}
 
 
     def train_BPE(self, data_dir: Path):
@@ -243,28 +234,33 @@ class MyTokeniser(miditok.REMI):
         """
         # from data_pipeline_scripts.conversion_functions import Generics
 
-        self.train(vocab_size=self.vocab_size * 2, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, list(data_dir.glob("*.midi"))))
-        
+        files = list(data_dir.glob(f"*.{constants.MIDI_EXTENSION}"))
+
+        print(f"Training BPE on {len(files)} .{constants.MIDI_EXTENSION} files in {data_dir}")
+
+        self.train(vocab_size=self.vocab_size * constants.BPE_VOCAB_SCALE_FACTOR, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, files))
+
         # Generics.clear_n_terminal_lines(2)
     
 
     def add_key_signatures_to_vocab(self) -> None:
         for i in range(-7, 8):
-            self.add_to_vocab(f'KeySig_{i}')
+            self.add_to_vocab(constants.KEY_SIG_TOKEN_PREFIX + str(i))
 
 
     def add_clefs_to_vocab(self) -> None:
-        for clef in self.config.additional_params["clefs"]:
-            self.add_to_vocab(f'Clef_{clef}')
+        for clef in self.config.additional_params[constants.CLEF_FIELD_NAME]:
+            self.add_to_vocab(constants.CLEF_TOKEN_PREFIX + clef)
 
 
     def add_complexities_to_vocab(self) -> None:
         for i in range(1, 11):
-            self.add_to_vocab(f'Dens_{i}')
-            self.add_to_vocab(f'Dur_{i}')
-            self.add_to_vocab(f'Int_{i}')
+            self.add_to_vocab(constants.DENSITY_COMPL_TOKEN_PREFIX + {i})
+            self.add_to_vocab(constants.DURATION_COMPL_TOKEN_PREFIX + {i})
+            self.add_to_vocab(constants.INTERVAL_COMPL_TOKEN_PREFIX + {i})
 
-
+    # TODO: Maybe find a way to prevent false negatives, but wed need to extract which lists in the config have a predifined order
+    # and which ones are just sets like the clefs, time signatures,
     @property
     def hexa_hash(self) -> str:
         """

@@ -3,6 +3,7 @@ from pathlib import Path
 from pyparsing import cached_property
 from data_pipeline_scripts.conversion_func_infrastructure import *
 from tokeniser.tokeniser import MyTokeniser
+import constants
        
 class Generics:
     """
@@ -255,7 +256,7 @@ class pdf_to_mxl(BatchConversionFunction):
 
     @cached_property
     def classpath(self) -> str:   
-        return ";".join([str(jar_file) for jar_file in self.audiveris_app_dir.glob("*.jar")])
+        return ";".join([str(jar_file) for jar_file in self.audiveris_app_dir.glob(f"*.{constants.JAR_EXTENSION}")])
 
     def skip_single_file(self, input_file, output_dir):
         return Generics.same_name_skip(input_file, output_dir)
@@ -310,8 +311,8 @@ class pdf_to_mxl(BatchConversionFunction):
         """
         if returncode == 0:
             res = []
-            
-            for input_file in input_dir.glob("*.pdf"):
+
+            for input_file in input_dir.glob(f"*{constants.PDF_SUFFIX}"):
                 temp = f"INFO  [{input_file.stem}]"
                 stdout_section = stdout[stdout.index(temp) : stdout.rfind(temp) + len(temp)]
                 res.extend(self.single_file_interpreter(0, stdout_section, "", input_file, output_dir))
@@ -342,7 +343,7 @@ class pdf_to_mxl(BatchConversionFunction):
             batch=False)
 
     def batch_conversion(self, input_dir, output_dir, overwrite = True):
-            input_files = [str(f) for f in input_dir.glob("*.pdf")]
+            input_files = [str(f) for f in input_dir.glob(f"*{constants.PDF_SUFFIX}")]
 
             command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", self.classpath, "Audiveris", "-batch", "-export", "-output", str(output_dir), "--", *input_files]
             
@@ -463,7 +464,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         from tokeniser.tokeniser import Metadata
         import music21, json
 
-        metadata_dir: dirPath = output_file.parent / "metadata_files"
+        metadata_dir: dirPath = output_file.parent / constants.METADATA_DIR_NAME
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
 
         metadata_file: FilePath = metadata_dir / (input_file.stem + ".meta.json")
@@ -512,8 +513,8 @@ class midi_to_tokens(SingleFileConversionFunction):
 
     def conversion(self, input_file: FilePath, output_dir: dirPath) -> List[ConversionOutcome]:    
         import json
-        
-        with input_file.parent.joinpath("metadata_files", input_file.stem + ".meta.json").open() as f:
+
+        with input_file.parent.joinpath(constants.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
             metadata = json.load(f)
 
         if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
@@ -533,7 +534,7 @@ class midi_to_tokens(SingleFileConversionFunction):
         else:
             Generics.clear_n_terminal_lines(3)
             
-            output_path = output_dir.joinpath(input_file.stem + ".tokens.json")
+            output_path = output_dir.joinpath(input_file.stem + constants.TOKENS_EXTENSION)
             
             with output_path.open("w", encoding="utf-8") as f:
                 json.dump(jso, f)

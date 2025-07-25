@@ -7,12 +7,8 @@ from pathlib import Path
 import miditok
 
 if __name__ == "__main__":
-    tokeniser1 = MyTokeniser(MyTokeniserConfig(clefs=['G', 'F'],))
-    tokeniser2 = MyTokeniser(MyTokeniserConfig(clefs=['F', 'G'],))
-    print(tokeniser1.hexa_hash)
-    print(tokeniser2.hexa_hash)
-
-    
+    model = MyModel()
+    model.save_pretrained(Path("C:/Users/marlo/sightreading_ai/model"))
     # tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=Path("C:/Users/marlo/sightreading_ai/tokeniser"))
 
     # pipeline = construct_music_pipeline(tokeniser)
@@ -38,3 +34,5 @@ if __name__ == "__main__":
 
 
 
+
+    pass
