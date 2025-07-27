@@ -1,5 +1,5 @@
 from __future__ import annotations
-import data_pipeline_scripts.conversion_functions as conversion_functions, constants
+import data_pipeline_scripts.conversion_functions as conversion_functions, constants as constants
 from typing import *
 from pathlib import Path
 from data_pipeline_scripts.conversion_func_infrastructure import *

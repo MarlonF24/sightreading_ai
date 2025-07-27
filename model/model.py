@@ -3,23 +3,23 @@ from pathlib import Path
 from tokeniser.tokeniser import MyTokeniser, Metadata
 from model.dataloader import MyTokenDataset
 from typing import *
-import constants
+import constants as constants
 
 
 class MyModel(GPT2LMHeadModel):
     OWN_PATH = Path(__file__)
     OWN_DIR = OWN_PATH.parent
-    TRAINING_DIR = OWN_DIR / constants.TRAINING_DIR_NAME
-    OUTPUT_DIR = OWN_DIR / constants.OUTPUT_DIR_NAME
-    
+    TRAINING_DIR = OWN_DIR / constants.model.TRAINING_DIR_NAME
+    OUTPUT_DIR = OWN_DIR / constants.model.OUTPUT_DIR_NAME
+
     @staticmethod
     def build_config(tokeniser: MyTokeniser = MyTokeniser()) -> GPT2Config:
-        config = constants.MYMODEL_BASE_CONFIG.copy()
-        config[constants.TOKENISER_HASH_FIELD] = tokeniser.hexa_hash
-        config[constants.VOCAB_SIZE_FIELD] = len(tokeniser.vocab_model) if tokeniser.is_trained else len(tokeniser.vocab)
-        config[constants.BOS_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.bos_token]
-        config[constants.EOS_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.eos_token]
-        config[constants.PAD_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.pad_token]
+        config = constants.model.MYMODEL_BASE_CONFIG.copy()
+        config[constants.model.TOKENISER_HASH_FIELD] = tokeniser.hexa_hash
+        config[constants.model.VOCAB_SIZE_FIELD] = len(tokeniser.vocab_model) if tokeniser.is_trained else len(tokeniser.vocab)
+        config[constants.model.BOS_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.bos_token]
+        config[constants.model.EOS_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.eos_token]
+        config[constants.model.PAD_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.pad_token]
 
         return GPT2Config(**config)
 
@@ -98,8 +98,8 @@ class MyModel(GPT2LMHeadModel):
             copy_inputs_as_labels=False,
             shift_labels=False,
             pad_on_left=False,
-            inputs_kwarg_name=constants.INPUT_IDS_KEY,
-            labels_kwarg_name=constants.LABELS_KEY,
+            inputs_kwarg_name=constants.tokeniser.TOKENS_INPUT_IDS_KEY,
+            labels_kwarg_name=constants.tokeniser.TOKENS_LABELS_KEY,
             pad_token_id=tokeniser.vocab[tokeniser.pad_token],
             labels_pad_idx=-100
         )
@@ -108,7 +108,7 @@ class MyModel(GPT2LMHeadModel):
             output_dir=str(cls.TRAINING_DIR),
             per_device_train_batch_size=2,
             save_strategy="epoch",
-            logging_dir=str(cls.TRAINING_DIR / constants.LOGS_DIR_NAME),
+            logging_dir=str(cls.TRAINING_DIR / constants.model.LOGS_DIR_NAME),
             save_total_limit=3,  # Optional: keep only last 3 checkpoints
         )
 
@@ -126,7 +126,7 @@ class MyModel(GPT2LMHeadModel):
 
     @classmethod
     def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata):
-        import torch, json, miditok
+        import torch
         cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         # Load tokeniser and model
@@ -141,14 +141,7 @@ class MyModel(GPT2LMHeadModel):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.to(device)
 
-        tok_seq = miditok.TokSequence(tokens=metadata_tokens.to_list())
-
-        tokeniser.complete_sequence(tok_seq, complete_bytes=True)
-
-        if tokeniser.is_trained:
-            tokeniser.encode_token_ids(tok_seq)
-
-        print(tok_seq.ids)
+        tok_seq = tokeniser.encode_metadata(metadata_tokens)
 
         input_ids = torch.tensor([tok_seq.ids], dtype=torch.long).to(device)
 
@@ -156,14 +149,11 @@ class MyModel(GPT2LMHeadModel):
         with torch.no_grad():
             generated = model.generate(input_ids, generation_config=model.generation_config)
 
+
         # Decode back to tokens
         output_ids = generated[0].tolist()
 
-        with open(cls.OUTPUT_DIR / f"generated{constants.TOKENS_EXTENSION}", "w") as f:
-            json.dump({constants.INPUT_IDS_KEY: output_ids,
-                       constants.METADATA_KEY: metadata_tokens.to_dict(),
-                       constants.TOKENISER_HASH_KEY: tokeniser.hexa_hash}, f, indent=4)
-
+        tokeniser.save_generated_tokens(cls.OUTPUT_DIR / f"generated{constants.tokeniser.TOKENS_EXTENSION}", output_ids, metadata_tokens)
 
 if __name__ == "__main__":
     tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 

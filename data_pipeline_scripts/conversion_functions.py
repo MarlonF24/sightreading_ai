@@ -4,7 +4,7 @@ from pathlib import Path
 from pyparsing import cached_property
 from data_pipeline_scripts.conversion_func_infrastructure import *
 from tokeniser.tokeniser import MyTokeniser, Metadata
-import constants
+import constants 
        
 class Generics:
     """
@@ -311,7 +311,7 @@ class pdf_to_mxl(BatchConversionFunction):
         if returncode == 0:
             res = []
 
-            for input_file in input_dir.glob(f"*{constants.PDF_SUFFIX}"):
+            for input_file in input_dir.glob(f"*{constants.PDF_EXTENSION}"):
                 temp = f"INFO  [{input_file.stem}]"
                 stdout_section = stdout[stdout.index(temp) : stdout.rfind(temp) + len(temp)]
                 res.extend(self.single_file_interpreter(0, stdout_section, "", input_file, output_dir))
@@ -342,7 +342,7 @@ class pdf_to_mxl(BatchConversionFunction):
             batch=False)
 
     def batch_conversion(self, input_dir, output_dir, overwrite = True):
-            input_files = [str(f) for f in input_dir.glob(f"*{constants.PDF_SUFFIX}")]
+            input_files = [str(f) for f in input_dir.glob(f"*{constants.PDF_EXTENSION}")]
 
             command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", self.classpath, "Audiveris", "-batch", "-export", "-output", str(output_dir), "--", *input_files]
             
@@ -463,7 +463,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         from tokeniser.tokeniser import Metadata
         import music21, json
 
-        metadata_dir: DirPath = output_dir / constants.METADATA_DIR_NAME
+        metadata_dir: DirPath = output_dir / constants.data_pipeline.METADATA_DIR_NAME
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
 
         #try:
@@ -541,7 +541,7 @@ class midi_to_tokens(SingleFileConversionFunction):
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:    
         import json
 
-        with input_file.parent.joinpath(constants.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
+        with input_file.parent.joinpath(constants.data_pipeline.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
             metadata = json.load(f)
 
         if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):

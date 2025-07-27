@@ -1,4 +1,4 @@
-import music21, miditok, constants
+import music21, miditok, constants as constants
 from typing import *
 from functools import cached_property, wraps
 from pathlib import Path
@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 class Metadata:
     # weights for complexity measures
-    DENSITY_COMPLEXITY_WEIGHT = constants.DENSITY_COMPLEXITY_WEIGHT
-    DURATION_COMPLEXITY_WEIGHT = constants.DURATION_COMPLEXITY_WEIGHT
-    INTERVAL_COMPLEXITY_WEIGHT = constants.INTERVAL_COMPLEXITY_WEIGHT
-    
+    DENSITY_COMPLEXITY_WEIGHT = constants.tokeniser.DENSITY_COMPLEXITY_WEIGHT
+    DURATION_COMPLEXITY_WEIGHT = constants.tokeniser.DURATION_COMPLEXITY_WEIGHT
+    INTERVAL_COMPLEXITY_WEIGHT = constants.tokeniser.INTERVAL_COMPLEXITY_WEIGHT
+
     def __init__(self, score: music21.stream.base.Score):
         self._score: music21.stream.base.Score = score
         if len(self._score.parts) != 2:
@@ -183,21 +183,35 @@ class Metadata:
 
         def to_dict(self) -> Dict[str, int]:
             return {
-                constants.KEY_SIGNATURE_FIELD: f"{constants.KEY_SIG_TOKEN_PREFIX}{self.key_signature}",
-                constants.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signature}",
-                constants.RH_CLEF_FIELD: f"{constants.CLEF_TOKEN_PREFIX}{self.rh_clef}",
-                constants.LH_CLEF_FIELD: f"{constants.CLEF_TOKEN_PREFIX}{self.lh_clef}",
-                constants.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
-                constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
-                constants.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
-                constants.DENSITY_COMPLEXITY_FIELD: f"{constants.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
-                constants.DURATION_COMPLEXITY_FIELD: f"{constants.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
-                constants.INTERVAL_COMPLEXITY_FIELD: f"{constants.INTERVAL_COMPL_TOKEN_PREFIX}{self.interval_complexity}"
+                constants.tokeniser.KEY_SIGNATURE_FIELD: f"{constants.tokeniser.KEY_SIG_TOKEN_PREFIX}{self.key_signature}",
+                constants.tokeniser.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signature}",
+                constants.tokeniser.RH_CLEF_FIELD: f"{constants.tokeniser.CLEF_TOKEN_PREFIX}{self.rh_clef}",
+                constants.tokeniser.LH_CLEF_FIELD: f"{constants.tokeniser.CLEF_TOKEN_PREFIX}{self.lh_clef}",
+                constants.tokeniser.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
+                constants.tokeniser.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
+                constants.tokeniser.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
+                constants.tokeniser.DENSITY_COMPLEXITY_FIELD: f"{constants.tokeniser.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
+                constants.tokeniser.DURATION_COMPLEXITY_FIELD: f"{constants.tokeniser.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
+                constants.tokeniser.INTERVAL_COMPLEXITY_FIELD: f"{constants.tokeniser.INTERVAL_COMPL_TOKEN_PREFIX}{self.interval_complexity}"
             }
         
         def to_list(self) -> List[str]:
             return list(self.to_dict().values())
-    
+        
+        @staticmethod
+        def type_to_dict(input: "Metadata | Metadata.TokenisedMetadata | Dict[str, str]") -> Dict[str, int]:
+            """
+            Converts Metadata or TokenisedMetadata to a dictionary.
+            If input is already a dictionary, it returns it as is.
+            """
+            if isinstance(input, Metadata):
+                return input.tokenised_metadata.to_dict()
+            elif isinstance(input, Metadata.TokenisedMetadata):
+                return input.to_dict()
+            elif isinstance(input, dict):
+                return input
+            else:
+                raise TypeError(f"Expected Metadata or TokenisedMetadata, got {type(input)}")
 
 class MyTokeniserConfig(miditok.classes.TokenizerConfig):
         """
@@ -215,12 +229,12 @@ class MyTokeniserConfig(miditok.classes.TokenizerConfig):
             :param max_bars: Maximum number of bars for embedding.
             """
             
-            config = constants.MYTOKENISER_BASE_CONFIG.copy()
+            config = constants.tokeniser.MYTOKENISER_BASE_CONFIG.copy()
             if time_signature_range:
-                config[constants.TIME_SIGNATURE_RANGE_FIELD] = time_signature_range
+                config[constants.tokeniser.TIME_SIGNATURE_RANGE_FIELD] = time_signature_range
 
             if max_bars:
-                config[constants.MAX_BARS_FIELD] = max_bars
+                config[constants.tokeniser.MAX_BARS_FIELD] = max_bars
 
             super().__init__(**config)
                    
@@ -236,9 +250,9 @@ class MyTokeniser(miditok.REMI):
 
         super().__init__(tokenizer_config=tokenizer_config, params=params)
 
-        self.bos_token = constants.BOS_TOKEN
-        self.eos_token = constants.EOS_TOKEN
-        self.pad_token = constants.PAD_TOKEN
+        self.bos_token = constants.tokeniser.BOS_TOKEN
+        self.eos_token = constants.tokeniser.EOS_TOKEN
+        self.pad_token = constants.tokeniser.PAD_TOKEN
 
         # trained tokenisers should have their whole vocab initialised again,
         # untrained ones get theirs created again, without our metadata tokens        
@@ -249,18 +263,39 @@ class MyTokeniser(miditok.REMI):
             self.add_complexities_to_vocab()
 
 
-    def encode_with_metadata(self, input_file: Path, tokenised_metadata: dict) -> dict:
-        metadata_seq = miditok.TokSequence(list(tokenised_metadata.values()))
-        self.complete_sequence(metadata_seq, complete_bytes=True)
-        if self.is_trained:
-            self.encode_token_ids(metadata_seq)
+    def encode_with_metadata(self, input_file: Path, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> dict:
+        metadata_seq = self.encode_metadata(tokenised_metadata)
 
         # encode_ids=true only encodes ids only if tokeniser is trained
         tok_seq = self.encode(input_file, encode_ids=True, no_preprocess_score=False, attribute_controls_indexes=None)
 
 
-        return {constants.INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids, constants.LABELS_KEY: tok_seq.ids, constants.TOKENISER_HASH_KEY: self.hexa_hash}
+        return {constants.tokeniser.TOKENS_INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids, constants.tokeniser.TOKENS_LABELS_KEY: tok_seq.ids, constants.tokeniser.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash}
 
+    def encode_metadata(self, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> miditok.TokSequence:
+        tokenised_metadata = Metadata.TokenisedMetadata.type_to_dict(tokenised_metadata)
+        
+        metadata_seq = miditok.TokSequence(list(tokenised_metadata.values()))
+        self.complete_sequence(metadata_seq, complete_bytes=True)
+        if self.is_trained:
+            self.encode_token_ids(metadata_seq)
+
+        return metadata_seq
+
+    def save_generated_tokens(self, output_file: Path, generated_tokens: list[int], metadata: Metadata | Metadata.TokenisedMetadata | dict) -> None:
+        import json
+
+        if isinstance(metadata, Metadata):
+            metadata = metadata.tokenised_metadata.to_dict()
+        elif isinstance(metadata, Metadata.TokenisedMetadata):
+            metadata = metadata.to_dict()
+
+        with open(output_file, "w") as f:
+            json.dump({
+                constants.tokeniser.TOKENS_INPUT_IDS_KEY: generated_tokens,
+                constants.tokeniser.TOKENS_METADATA_KEY: metadata,
+                constants.tokeniser.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash
+            }, f, indent=4)
 
     def train_BPE(self, data_dir: Path):
         """
@@ -273,26 +308,26 @@ class MyTokeniser(miditok.REMI):
 
         print(f"Training BPE on {len(files)} .{constants.MIDI_EXTENSION} files in {data_dir}")
 
-        self.train(vocab_size=self.vocab_size * constants.BPE_VOCAB_SCALE_FACTOR, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, files))
+        self.train(vocab_size=self.vocab_size * constants.tokeniser.BPE_VOCAB_SCALE_FACTOR, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, files))
 
         # Generics.clear_n_terminal_lines(2)
     
 
     def add_key_signatures_to_vocab(self) -> None:
         for i in range(-7, 8):
-            self.add_to_vocab(constants.KEY_SIG_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser.KEY_SIG_TOKEN_PREFIX + str(i))
 
 
     def add_clefs_to_vocab(self) -> None:
-        for clef in self.config.additional_params[constants.CLEF_FIELD_NAME]:
-            self.add_to_vocab(constants.CLEF_TOKEN_PREFIX + clef)
+        for clef in self.config.additional_params[constants.tokeniser.CLEF_FIELD_NAME]:
+            self.add_to_vocab(constants.tokeniser.CLEF_TOKEN_PREFIX + clef)
 
 
     def add_complexities_to_vocab(self) -> None:
         for i in range(1, 11):
-            self.add_to_vocab(constants.DENSITY_COMPL_TOKEN_PREFIX + str(i))
-            self.add_to_vocab(constants.DURATION_COMPL_TOKEN_PREFIX + str(i))
-            self.add_to_vocab(constants.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser.DENSITY_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser.DURATION_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
 
     # TODO: Maybe find a way to prevent false negatives, but wed need to extract which lists in the config have a predifined order
     # and which ones are just sets like the clefs, time signatures,
@@ -310,27 +345,24 @@ class MyTokeniser(miditok.REMI):
     def valid_metadata(self, tokenised_data: Metadata | Metadata.TokenisedMetadata | Dict[str, str]) -> Tuple[bool, str]:
         res = ""
 
-        if isinstance(tokenised_data, Metadata):
-            tokenised_data = tokenised_data.tokenised_metadata.to_dict()
-        elif isinstance(tokenised_data, Metadata.TokenisedMetadata):
-            tokenised_data = tokenised_data.to_dict()
+        tokenised_data = Metadata.TokenisedMetadata.type_to_dict(tokenised_data)
         
-        if (t := tokenised_data[constants.NUM_MEASURES_FIELD]) not in self.vocab:
-            res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.MAX_BARS_FIELD]} Bars\n"
+        if (t := tokenised_data[constants.tokeniser.NUM_MEASURES_FIELD]) not in self.vocab:
+            res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.tokeniserMAX_BARS_FIELD]} Bars\n"
 
-        if (t := tokenised_data[constants.TIME_SIGNATURE_FIELD]) not in self.vocab:
+        if (t := tokenised_data[constants.tokeniser.TIME_SIGNATURE_FIELD]) not in self.vocab:
             res += f"Invalid time signature: {t} not in {self.config.time_signature_range} Time Signatures\n"
 
-        if (c := tokenised_data[constants.RH_CLEF_FIELD]) not in self.vocab:
-            res += f"Invalid RH clef: {c} not in {self.config.additional_params[constants.CLEF_FIELD_NAME]} Clefs\n"
+        if (c := tokenised_data[constants.tokeniser.RH_CLEF_FIELD]) not in self.vocab:
+            res += f"Invalid RH clef: {c} not in {self.config.additional_params[constants.tokeniser.CLEF_FIELD_NAME]} Clefs\n"
 
-        if (c := tokenised_data[constants.LH_CLEF_FIELD]) not in self.vocab:
-            res += f"Invalid LH clef: {c} not in {self.config.additional_params[constants.CLEF_FIELD_NAME]} Clefs\n"
+        if (c := tokenised_data[constants.tokeniser.LH_CLEF_FIELD]) not in self.vocab:
+            res += f"Invalid LH clef: {c} not in {self.config.additional_params[constants.tokeniser.CLEF_FIELD_NAME]} Clefs\n"
 
-        if (l := tokenised_data[constants.LOWEST_PITCH_FIELD]) not in self.vocab:
+        if (l := tokenised_data[constants.tokeniser.LOWEST_PITCH_FIELD]) not in self.vocab:
             res += f"Invalid lowest pitch: {l} not in MIDI range {self.config.pitch_range}\n"
 
-        if (h := tokenised_data[constants.HIGHEST_PITCH_FIELD]) not in self.vocab:
+        if (h := tokenised_data[constants.tokeniser.HIGHEST_PITCH_FIELD]) not in self.vocab:
             res += f"Invalid highest pitch: {h} not in MIDI range {self.config.pitch_range}\n"
 
         if res:
