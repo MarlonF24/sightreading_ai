@@ -13,32 +13,32 @@ class Converter():
 
     Class Attributes:
         OWN_PATH (FilePath): The absolute file path of the current Converter class.
-        OWN_DIRECTORY (dirPath): The directory containing the current Converter class.
-        OWN_DIRECTORY_DIRECTORY (dirPath): The directory containing the OWN_DIRECTORY directory.
+        OWN_DIRECTORY (DirPath): The directory containing the current Converter class.
+        OWN_DIRECTORY_DIRECTORY (DirPath): The directory containing the OWN_DIRECTORY directory.
 
     Attributes:
         pipeline (Pipeline): The pipeline object representing the conversion flow.
-        data_dir_path (dirPath): The path to the dir containing the input data files.
-        logs_dir_path (dirPath): The path to the dir where the log files will be stored.
+        data_dir_path (DirPath): The path to the dir containing the input data files.
+        logs_dir_path (DirPath): The path to the dir where the log files will be stored.
     """
 
     OWN_PATH: FilePath = Path(os.path.abspath(__file__))
-    OWN_DIRECTORY: dirPath = OWN_PATH.parent
+    OWN_DIRECTORY: DirPath = OWN_PATH.parent
     OWN_DIRECTORY_DIRECTORY = OWN_DIRECTORY.parent
     
     
-    def __init__(self, pipeline: Pipeline, pipeline_dir_path: dirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}")) -> None:
+    def __init__(self, pipeline: Pipeline, pipeline_dir_path: DirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}")) -> None:
         """
         Initializes a Converter object with the given pipeline, data dir path, and logs dir path.
 
         Parameters:
             pipeline (Pipeline): The pipeline object representing the conversion flow.
-            pipeline_dir_path (dirPath, optional): The path to the dir where the pipeline shall be located. Defaults to the parent directory of the current file's directory.
+            pipeline_dir_path (DirPath, optional): The path to the dir where the pipeline shall be located. Defaults to the parent directory of the current file's directory.
         """
         # environment.set('musescoreDirectPNGPath', musescore_path)
-        self.pipeline_dir_path: dirPath = pipeline_dir_path / constants.CONVERTER_PIPELINE_DIR_NAME
-        self.logs_dir_path: dirPath = self.pipeline_dir_path / constants.CONVERTER_LOGS_DIR_NAME
-        self.data_dir_path: dirPath = self.pipeline_dir_path / constants.CONVERTER_DATA_DIR_DEFAULT_NAME
+        self.pipeline_dir_path: DirPath = pipeline_dir_path / constants.CONVERTER_PIPELINE_DIR_NAME
+        self.logs_dir_path: DirPath = self.pipeline_dir_path / constants.CONVERTER_LOGS_DIR_NAME
+        self.data_dir_path: DirPath = self.pipeline_dir_path / constants.CONVERTER_DATA_DIR_DEFAULT_NAME
         self.logs_dir_path.mkdir(parents=True, exist_ok=True)
         self.data_dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -55,7 +55,7 @@ class Converter():
         Each conversion route is represented by a tuple of two PipelineStage instances, and the corresponding log dir
         is stored in the log_dir_map dictionary.
         """
-        self.log_dir_map: dict[Tuple[PipelineStage, PipelineStage], dirPath] = {}
+        self.log_dir_map: dict[Tuple[PipelineStage, PipelineStage], DirPath] = {}
         for stage in self.pipeline:
             for child in stage.children:
                 path = self.logs_dir_path.joinpath(f"{stage.name}_to_{child.name}")
@@ -71,7 +71,7 @@ class Converter():
         Each stage is represented by a PipelineStage instance, and the corresponding data dir
         is stored in the data_dir_map dictionary.
         """
-        self.data_dir_map: dict[PipelineStage, dirPath] = {}
+        self.data_dir_map: dict[PipelineStage, DirPath] = {}
         for stage in self.pipeline:
             path = self.data_dir_path.joinpath(stage.name)
             self.data_dir_map[stage] = path
@@ -162,7 +162,7 @@ class Converter():
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_dir: dirPath, output_dir: dirPath, log: Log, overwrite: bool, extension: str) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_dir: DirPath, output_dir: DirPath, log: Log, overwrite: bool, extension: str) -> None:
         """
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -186,14 +186,14 @@ class Converter():
         log.commit()
 
 
-    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, input_dir: dirPath, output_dir: dirPath, log: Log, overwrite: bool) -> None:
+    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, input_dir: DirPath, output_dir: DirPath, log: Log, overwrite: bool) -> None:
         """
         Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
         Parameters:
             conversion_function (BatchConversionFunction): The batch conversion function to be applied to the input files.
-            input_dir (dirPath): The dir containing the input files.
-            output_dir (dirPath): The dir where the output files will be saved.
+            input_dir (DirPath): The dir containing the input files.
+            output_dir (DirPath): The dir where the output files will be saved.
             log (Log): The log object to store the conversion outcomes.
             overwrite (bool): A flag indicating whether existing files should be overwritten.
 
@@ -217,8 +217,8 @@ class Log():
         target_stage (PipelineStage): The target stage of the conversion process.
         path (FilePath): The file path where the log will be saved.
         
-        start_stage_dir_path (dirPath): The dir path where the input files for the conversion process are located.
-        target_stage_dir_path (dirPath): The dir path where the output files for the conversion process will be saved.
+        start_stage_dir_path (DirPath): The dir path where the input files for the conversion process are located.
+        target_stage_dir_path (DirPath): The dir path where the output files for the conversion process will be saved.
         
         text (List[str]): A list to store the log messages.
         
@@ -255,8 +255,8 @@ class Log():
 
         self.path: FilePath = Path(self.converter.log_dir_map[(start_stage, target_stage)].joinpath(f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}{constants.LOG_EXTENSION}"))
 
-        self.start_stage_dir_path: dirPath = self.converter.data_dir_map[start_stage]
-        self.target_stage_dir_path: dirPath = self.converter.data_dir_map[target_stage]
+        self.start_stage_dir_path: DirPath = self.converter.data_dir_map[start_stage]
+        self.target_stage_dir_path: DirPath = self.converter.data_dir_map[target_stage]
         self.text: List[str] = [self.path.name + f"\n {self.start_stage_dir_path} -> {self.target_stage_dir_path}" + 2 * "\n"]
 
         self.num_total_files: int = len(list(self.converter.data_dir_map[start_stage].glob(f"*{start_stage.extension}")))

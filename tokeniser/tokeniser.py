@@ -2,6 +2,7 @@ import music21, miditok, constants
 from typing import *
 from functools import cached_property, wraps
 from pathlib import Path
+from dataclasses import dataclass
 
 class Metadata:
     # weights for complexity measures
@@ -120,17 +121,17 @@ class Metadata:
         return self.rh_intervals + self.lh_intervals  # combine intervals from both hands
     
     @cached_property
-    def density_complexity(self) -> float:
+    def density_complexity(self) -> int:
         note_density = Metadata.DENSITY_COMPLEXITY_WEIGHT * round(self.num_total_notes / max(self.num_measures, 1) / 2)
         return min(10, max(1, note_density)) # Complexity (placeholder heuristic: density)
         
     @cached_property
-    def duration_complexity(self) -> float:
+    def duration_complexity(self) -> int:
         unique_durations =  set(round(n.quarterLength, 2) for n in self.notes)
         return min(10, max(1, Metadata.DURATION_COMPLEXITY_WEIGHT * len(unique_durations)))  # Duration complexity (how many types of durations are used?)
     
     @cached_property
-    def interval_complexity(self) -> float:
+    def interval_complexity(self) -> int:
         avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
         return min(10, round(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
@@ -148,22 +149,56 @@ class Metadata:
             "pitch_complexity": self.interval_complexity
         }
 
-
     @cached_property
-    def tokenised_data(self) -> Dict[str, str]:
-        return {
-            constants.KEY_SIGNATURE_FIELD: f"KeySig_{self.key_signatures[0]}",
-            constants.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signatures[0]}",
-            constants.RH_CLEF_FIELD: f"Clef_{self.rh_clefs[0]}",
-            constants.LH_CLEF_FIELD: f"Clef_{self.lh_clefs[0]}",
-            constants.LOWEST_PITCH_FIELD: f"Pitch_{self.pitch_range[0].midi}",
-            constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.pitch_range[1].midi}",
-            constants.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
-            constants.DENSITY_COMPLEXITY_FIELD: f"Dens_{self.density_complexity}",
-            constants.DURATION_COMPLEXITY_FIELD: f"Dur_{self.duration_complexity}",
-            constants.INTERVAL_COMPLEXITY_FIELD: f"Int_{self.interval_complexity}"
-        }
+    def tokenised_metadata(self) -> "TokenisedMetadata":
+        """
+        Returns a TokenisedMetadata object containing the metadata as tokenised strings.
+        This is useful for encoding the metadata into a format suitable for the tokeniser.
+        """
+        return self.TokenisedMetadata(
+            key_signature=self.key_signatures[0],
+            time_signature=self.time_signatures[0],
+            rh_clef=self.rh_clefs[0],
+            lh_clef=self.lh_clefs[0],
+            lowest_pitch=self.pitch_range[0].midi,
+            highest_pitch=self.pitch_range[1].midi,
+            num_measures=self.num_measures,
+            density_complexity=self.density_complexity,
+            duration_complexity=self.duration_complexity,
+            interval_complexity=self.interval_complexity
+        )
+
+    @dataclass
+    class TokenisedMetadata:
+        key_signature: int
+        time_signature: str
+        rh_clef: str
+        lh_clef: str
+        lowest_pitch: int
+        highest_pitch: int
+        num_measures: int
+        density_complexity: int
+        duration_complexity: int
+        interval_complexity: int
+
+        def to_dict(self) -> Dict[str, int]:
+            return {
+                constants.KEY_SIGNATURE_FIELD: f"{constants.KEY_SIG_TOKEN_PREFIX}{self.key_signature}",
+                constants.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signature}",
+                constants.RH_CLEF_FIELD: f"{constants.CLEF_TOKEN_PREFIX}{self.rh_clef}",
+                constants.LH_CLEF_FIELD: f"{constants.CLEF_TOKEN_PREFIX}{self.lh_clef}",
+                constants.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
+                constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
+                constants.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
+                constants.DENSITY_COMPLEXITY_FIELD: f"{constants.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
+                constants.DURATION_COMPLEXITY_FIELD: f"{constants.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
+                constants.INTERVAL_COMPLEXITY_FIELD: f"{constants.INTERVAL_COMPL_TOKEN_PREFIX}{self.interval_complexity}"
+            }
+        
+        def to_list(self) -> List[str]:
+            return list(self.to_dict().values())
     
+
 class MyTokeniserConfig(miditok.classes.TokenizerConfig):
         """
         Custom configuration for the MyTokeniser.
@@ -255,9 +290,9 @@ class MyTokeniser(miditok.REMI):
 
     def add_complexities_to_vocab(self) -> None:
         for i in range(1, 11):
-            self.add_to_vocab(constants.DENSITY_COMPL_TOKEN_PREFIX + {i})
-            self.add_to_vocab(constants.DURATION_COMPL_TOKEN_PREFIX + {i})
-            self.add_to_vocab(constants.INTERVAL_COMPL_TOKEN_PREFIX + {i})
+            self.add_to_vocab(constants.DENSITY_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.DURATION_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
 
     # TODO: Maybe find a way to prevent false negatives, but wed need to extract which lists in the config have a predifined order
     # and which ones are just sets like the clefs, time signatures,
@@ -272,25 +307,30 @@ class MyTokeniser(miditok.REMI):
         return hashlib.sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
 
 
-    def valid_metadata(self, tokenised_data: Metadata) -> Tuple[bool, str]:
+    def valid_metadata(self, tokenised_data: Metadata | Metadata.TokenisedMetadata | Dict[str, str]) -> Tuple[bool, str]:
         res = ""
-        
-        if tokenised_data["num_measures"] not in self.vocab:
-            res += f"Invalid number of measures: {tokenised_data['num_measures']} not in range 1-{self.config.additional_params['max_bar_embedding']} Bars\n"
 
-        if (t := tokenised_data["time_signature"]) not in self.vocab:
+        if isinstance(tokenised_data, Metadata):
+            tokenised_data = tokenised_data.tokenised_metadata.to_dict()
+        elif isinstance(tokenised_data, Metadata.TokenisedMetadata):
+            tokenised_data = tokenised_data.to_dict()
+        
+        if (t := tokenised_data[constants.NUM_MEASURES_FIELD]) not in self.vocab:
+            res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.MAX_BARS_FIELD]} Bars\n"
+
+        if (t := tokenised_data[constants.TIME_SIGNATURE_FIELD]) not in self.vocab:
             res += f"Invalid time signature: {t} not in {self.config.time_signature_range} Time Signatures\n"
 
-        if (c := tokenised_data["rh_clef"]) not in self.vocab:
-            res += f"Invalid RH clef: {c} not in {self.config.additional_params['clefs']} Clefs\n"
+        if (c := tokenised_data[constants.RH_CLEF_FIELD]) not in self.vocab:
+            res += f"Invalid RH clef: {c} not in {self.config.additional_params[constants.CLEF_FIELD_NAME]} Clefs\n"
 
-        if (c := tokenised_data["lh_clef"]) not in self.vocab:
-            res += f"Invalid LH clef: {c} not in {self.config.additional_params['clefs']} Clefs\n"
+        if (c := tokenised_data[constants.LH_CLEF_FIELD]) not in self.vocab:
+            res += f"Invalid LH clef: {c} not in {self.config.additional_params[constants.CLEF_FIELD_NAME]} Clefs\n"
 
-        if (l := tokenised_data["lowest_pitch"]) not in self.vocab:
+        if (l := tokenised_data[constants.LOWEST_PITCH_FIELD]) not in self.vocab:
             res += f"Invalid lowest pitch: {l} not in MIDI range {self.config.pitch_range}\n"
 
-        if (h := tokenised_data["highest_pitch"]) not in self.vocab:
+        if (h := tokenised_data[constants.HIGHEST_PITCH_FIELD]) not in self.vocab:
             res += f"Invalid highest pitch: {h} not in MIDI range {self.config.pitch_range}\n"
 
         if res:

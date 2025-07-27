@@ -1,8 +1,9 @@
+import traceback
 from typing import *
 from pathlib import Path
 from pyparsing import cached_property
 from data_pipeline_scripts.conversion_func_infrastructure import *
-from tokeniser.tokeniser import MyTokeniser
+from tokeniser.tokeniser import MyTokeniser, Metadata
 import constants
        
 class Generics:
@@ -58,13 +59,13 @@ class Generics:
 
 
     @staticmethod
-    def invalid_metadata_skip(input_file: FilePath, tokenised_data: Dict[str, str], tokeniser: MyTokeniser) -> List[ConversionOutcome]:
+    def invalid_metadata_skip(input_file: FilePath, tokenised_data: Metadata | Metadata.TokenisedMetadata | Dict[str, str], tokeniser: MyTokeniser) -> List[ConversionOutcome]:
         """Check if the tokenised data contains valid metadata.
 
         :param input_file: The input file being processed.
         :type input_file: FilePath
         :param tokenised_data: The tokenised data to check.
-        :type tokenised_data: Dict[str, str]
+        :type tokenised_data: Metadata | Metadata.TokenisedMetadata | Dict[str, str]
         :param tokeniser: The tokeniser used for validation.
         :type tokeniser: MyTokeniser
         :return: A list of ConversionOutcome objects indicating the result of the validation.
@@ -82,14 +83,14 @@ class Generics:
 
 
     @staticmethod
-    def find_same_name_outcomes(input_file: FilePath, output_dir: dirPath) -> List[FilePath]:
+    def find_same_name_outcomes(input_file: FilePath, output_dir: DirPath) -> List[FilePath]:
         """
         This function finds all files in the output dir whose name starts with the name of the input file.
         It uses the file's stem (name without extension) to match files.
 
         Parameters:
             input_file (FilePath): The input file for which to find matching files in the output dir.
-            output_dir (dirPath): The dir in which to search for matching files.
+            output_dir (DirPath): The dir in which to search for matching files.
 
         Returns:
             List[FilePath]: A list of file paths that match the input file's name in the output dir.
@@ -98,7 +99,7 @@ class Generics:
 
 
     @staticmethod
-    def same_name_skip(input_file: FilePath, output_dir: dirPath) -> List[ConversionOutcome]:
+    def same_name_skip(input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
         """
         This function checks if there are any existing files in the output dir whose name starts with the name of the input file.
         If such files exist, it returns a list containing a ConversionOutcome object indicating that the conversion was skipped.
@@ -106,7 +107,7 @@ class Generics:
 
         Attributes:
             input_file (FilePath): The input file for which to check for matching files in the output dir.
-            output_dir (dirPath): The dir in which to search for matching files.
+            output_dir (DirPath): The dir in which to search for matching files.
     
         Returns:
             List[ConversionOutcome]: A list containing a ConversionOutcome object if matching files are found, or an empty list otherwise.
@@ -116,17 +117,17 @@ class Generics:
         return [ConversionOutcome(input_file=input_file, output_files=res, skipped=True)] if res else []
     
 
-    SingleFileInterpreter = Callable[[int, str, str, FilePath, dirPath], List[ConversionOutcome]]
-    BatchInterpreter = Callable[[int, str, str, dirPath, dirPath], List[ConversionOutcome]]
-    SingleFileCleanUp = Callable[[FilePath, dirPath], None]
-    BatchCleanUp = Callable[[dirPath, dirPath], None]
-    Skip = Callable[[FilePath, dirPath], List[FilePath]]
+    SingleFileInterpreter = Callable[[int, str, str, FilePath, DirPath], List[ConversionOutcome]]
+    BatchInterpreter = Callable[[int, str, str, DirPath, DirPath], List[ConversionOutcome]]
+    SingleFileCleanUp = Callable[[FilePath, DirPath], None]
+    BatchCleanUp = Callable[[DirPath, DirPath], None]
+    Skip = Callable[[FilePath, DirPath], List[FilePath]]
 
     @overload
     @staticmethod
     def generic_subprocess_conversion( 
         input_path: FilePath,
-        output_dir: dirPath,
+        output_dir: DirPath,
         command: List[str],
         interpreter: SingleFileInterpreter,
         batch: Literal[False],
@@ -137,8 +138,8 @@ class Generics:
     @overload
     @staticmethod
     def generic_subprocess_conversion( 
-        input_path: dirPath,
-        output_dir: dirPath,
+        input_path: DirPath,
+        output_dir: DirPath,
         command: List[str],
         interpreter: BatchInterpreter,
         batch: Literal[True],
@@ -148,8 +149,8 @@ class Generics:
 
     @staticmethod
     def generic_subprocess_conversion( 
-        input_path: FilePath | dirPath,
-        output_dir: dirPath,
+        input_path: FilePath | DirPath,
+        output_dir: DirPath,
         command: List[str],
         interpreter: SingleFileInterpreter | BatchInterpreter,
         batch: bool
@@ -158,8 +159,8 @@ class Generics:
         This function is a generic utility for executing subprocess commands, interpreting their output, and handling cleanup.
 
         Attributes:
-            input_path (FilePath | dirPath): The input file or dir for the conversion process.
-            output_dir (dirPath): The dir where the output files will be saved.
+            input_path (FilePath | DirPath): The input file or dir for the conversion process.
+            output_dir (DirPath): The dir where the output files will be saved.
             command (List[str]): The command to be executed as a list of strings.
             interpreter (SingleFileInterpreter | BatchInterpreter): The function that interprets the subprocess output.
             batch (bool): A flag indicating whether the conversion is batch or single file.
@@ -187,17 +188,17 @@ class Generics:
     @staticmethod
     def generic_music21_conversion(
         input_file: FilePath, 
-        output_file: FilePath, 
-        func: Callable[[FilePath, FilePath], None | List[ConversionOutcome]]
+        output_dir: FilePath, 
+        func: (Callable[[FilePath, DirPath], List[FilePath]])
         ) -> List[ConversionOutcome]:
         """
         This function is a generic utility for converting music files using the music21 library.
         It catches warnings during the conversion process and handles exceptions.
 
         Attributes:
-            input_file: (FilePath): The path to the input music file.
-            output_file (FilePath): The path where the converted music file will be saved.
-            func (Callable[[FilePath, FilePath], None]): The function that performs the actual conversion.
+            input_file (FilePath): The path to the input music file.
+            output_dir (DirPath): The path where the converted music file will be saved.
+            func (Callable[[FilePath, DirPath], ]): The function that performs the actual conversion.
 
         Returns:
             List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
@@ -207,13 +208,11 @@ class Generics:
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")
             try:
-                if t := func(input_file, output_file):
-                    return t  
+                output_files = func(input_file, output_dir)  
             
             except Exception as e:
                 return [ConversionOutcome(
                     input_file=input_file,
-                    output_files=[output_file],
                     successful=False,
                     error_message=Generics.str_error(e)
                 )]
@@ -221,7 +220,7 @@ class Generics:
             else:
                 return [ConversionOutcome(
                         input_file=input_file,
-                        output_files=[output_file],
+                        output_files=output_files,
                         successful=True,
                         warning_messages=[str(w.message) for w in caught_warnings])]
 
@@ -234,16 +233,16 @@ class pdf_to_mxl(BatchConversionFunction):
     Inherits from BatchConversionFunction.
 
     Attributes:
-        audiveris_app_dir (dirPath): The path to the dir containing the Audiveris application's jar files.
+        audiveris_app_dir (DirPath): The path to the dir containing the Audiveris application's jar files.
         do_clean_up (bool): A flag indicating whether to perform cleanup after the conversion process.
     """
 
-    def __init__(self, audiveris_app_dir: dirPath, do_clean_up: bool = True):
+    def __init__(self, audiveris_app_dir: DirPath, do_clean_up: bool = True):
         """
         Initialise a new instance of the pdf_to_mxl class.
 
         Parameters:
-            audiveris_app_dir (dirPath): _description_
+            audiveris_app_dir (DirPath): _description_
             do_clean_up (bool): _description_, defaults to True
     
         """        
@@ -251,17 +250,17 @@ class pdf_to_mxl(BatchConversionFunction):
         self.do_clean_up = do_clean_up
 
     @property
-    def audiveris_app_dir(self) -> dirPath:
+    def audiveris_app_dir(self) -> DirPath:
         return self._audiveris_app_dir
 
     @cached_property
     def classpath(self) -> str:   
-        return ";".join([str(jar_file) for jar_file in self.audiveris_app_dir.glob(f"*.{constants.JAR_EXTENSION}")])
+        return ";".join([str(jar_file) for jar_file in self.audiveris_app_dir.glob(f"*{constants.JAR_EXTENSION}")])
 
     def skip_single_file(self, input_file, output_dir):
         return Generics.same_name_skip(input_file, output_dir)
 
-    def single_file_interpreter(self, returncode: int, stdout: str, stderr: str, input_file: FilePath, output_dir: dirPath) -> List[ConversionOutcome]:
+    def single_file_interpreter(self, returncode: int, stdout: str, stderr: str, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
         """
         Interprets the output of a single file conversion process.
 
@@ -270,7 +269,7 @@ class pdf_to_mxl(BatchConversionFunction):
             stdout (str): The standard output of the conversion process.
             stderr (str): The standard error output of the conversion process.
             input_file (FilePath): The input file for the conversion process.
-            output_dir (dirPath): The dir where the output files are saved.
+            output_dir (DirPath): The dir where the output files are saved.
 
         Returns:
             List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
@@ -295,7 +294,7 @@ class pdf_to_mxl(BatchConversionFunction):
         
         return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=False, error_message=stderr)]
     
-    def batch_interpreter(self, returncode: int, stderr: str, stdout: str, input_dir: dirPath, output_dir: dirPath) -> List[ConversionOutcome]:
+    def batch_interpreter(self, returncode: int, stderr: str, stdout: str, input_dir: DirPath, output_dir: DirPath) -> List[ConversionOutcome]:
         """
         Interprets the output of a batch conversion process.
 
@@ -303,8 +302,8 @@ class pdf_to_mxl(BatchConversionFunction):
             returncode (int): The return code of the conversion process.
             stderr (str): The standard error output of the conversion process.
             stdout (str): The standard output of the conversion process.
-            input_dir (dirPath): The dir containing the input files for the conversion process.
-            output_dir (dirPath): The dir where the output files will be saved.
+            input_dir (DirPath): The dir containing the input files for the conversion process.
+            output_dir (DirPath): The dir where the output files will be saved.
 
         Returns:
             List[ConversionOutcome]: A list of ConversionOutcome objects representing the outcome of the conversion process.
@@ -324,15 +323,15 @@ class pdf_to_mxl(BatchConversionFunction):
         
         return [ConversionOutcome(input_file=input_dir, successful=False, error_message=stderr)]
 
-    def batch_clean_up(self, input_dir: dirPath, output_dir: dirPath) -> None:
+    def batch_clean_up(self, input_dir: DirPath, output_dir: DirPath) -> None:
         for file in output_dir.iterdir():
             if file.suffix != '.mxl':
                 file.unlink() if file.is_file() else file.rmdir()
 
-    def single_file_clean_up(self, input_file: FilePath, output_dir: dirPath) -> None:
+    def single_file_clean_up(self, input_file: FilePath, output_dir: DirPath) -> None:
         self.batch_clean_up(Path(""), output_dir)
 
-    def single_file_conversion(self, input_file: FilePath, output_dir: dirPath, overwrite: bool = True):  
+    def single_file_conversion(self, input_file: FilePath, output_dir: DirPath, overwrite: bool = True):  
         command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", self.classpath, "Audiveris", "-batch", "-export", "-output", str(output_dir), "--", str(input_file)]
          
         return Generics.generic_subprocess_conversion(
@@ -365,7 +364,7 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
     def skip_single_file(self, input_file, output_dir):
         return Generics.same_name_skip(input_file, output_dir)
 
-    def music21_func(self, input_file: FilePath, output_file: FilePath) -> None:
+    def music21_func(self, input_file: FilePath, output_dir: DirPath) -> List[FilePath]:
         """
         This function is responsible for converting a MXL file to a MusicXML file using the music21 library.
 
@@ -376,10 +375,10 @@ class mxl_to_musicxml_music21(SingleFileConversionFunction):
         import music21
 
         score = music21.converter.parse(input_file)
-        score.write('musicxml', fp=output_file)
+        score.write('musicxml', fp=output_dir / (input_file.stem + constants.MUSICXML_EXTENSION))
     
-    def conversion(self, input_file: FilePath, output_dir: dirPath) -> List[ConversionOutcome]:
-        return Generics.generic_music21_conversion(input_file, output_dir.joinpath(input_file.stem + ".musicxml"), self.music21_func)
+    def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
+        return Generics.generic_music21_conversion(input_file, output_dir, self.music21_func)
 
     
 class mxl_to_musicxml_unzip(SingleFileConversionFunction):
@@ -392,7 +391,7 @@ class mxl_to_musicxml_unzip(SingleFileConversionFunction):
     def skip_single_file(self, input_file, output_dir):
         return Generics.same_name_skip()
     
-    def clean_up(self, input_file: FilePath, output_dir: dirPath):
+    def clean_up(self, input_file: FilePath, output_dir: DirPath):
         import shutil
 
         for file in output_dir.iterdir():
@@ -452,7 +451,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
     def clean_up(self, input_file, output_dir):
         pass
 
-    def music21_func(self, input_file: FilePath, output_file: FilePath) -> None | List[ConversionOutcome]:
+    def music21_func(self, input_file: FilePath, output_dir: DirPath) ->  List[FilePath]:
         """
         This function is responsible for converting a MusicXML file to a MIDI file using the music21 library.
         It also extracts metadata from the parsed music score and saves it to a JSON file.
@@ -464,39 +463,67 @@ class musicxml_to_midi(SingleFileConversionFunction):
         from tokeniser.tokeniser import Metadata
         import music21, json
 
-        metadata_dir: dirPath = output_file.parent / constants.METADATA_DIR_NAME
+        metadata_dir: DirPath = output_dir / constants.METADATA_DIR_NAME
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
 
-        metadata_file: FilePath = metadata_dir / (input_file.stem + ".meta.json")
-
+        #try:
         score = music21.converter.parse(input_file)
-        
+        # except ZeroDivisionError as e:
+        #     traceback.print_exc()
+        #     raise ZeroDivisionError(f"artificial error")
+
         if not isinstance(score, music21.stream.Score):
             raise ValueError("Input file is not a valid MusicXML file.")
+
+        measures = score.parts[0].getElementsByClass(music21.stream.Measure)
+        splits = [1]  
         
-        metadata = Metadata(score)
-
-        if t := Generics.invalid_metadata_skip(input_file, metadata.tokenised_data, self.tokeniser):
-            return t
-
-        lh = score.parts[1]
-
-        lh.removeByClass(music21.instrument.Instrument)
-       
-        piano_lh = music21.instrument.ElectricPiano()
-        lh.insert(0, piano_lh)
+        for i, measure in enumerate(measures, start=1):
+            lol =measure.rightBarline
+            if measure.finalBarline:
+                splits.append(i)
         
-        score.write("midi", fp=output_file)
-        
-        with open(metadata_file, "w") as f:
-            json.dump(metadata.tokenised_data, f, indent=4)
+        if not len(measures) in splits:
+            splits.append(len(measures))
 
-        return None
-    
+        split_scores = [score.measures(splits[i], splits[i + 1]) for i in range(len(splits) - 1)]
+
+        output_files: List[FilePath] = []
+        for i, score in enumerate(split_scores, start=1):
+            metadata = Metadata(score)
+            if not metadata.rh_clefs:
+                pass
+
+            if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
+                raise ValueError(t[0].error_message)
+
+            lh = score.parts[1]
+
+            lh.removeByClass(music21.instrument.Instrument)
+        
+            piano_lh = music21.instrument.ElectricPiano()
+            lh.insert(0, piano_lh)
+
+            if len(split_scores) > 1:
+                _output_file = output_dir / (input_file.stem + f"_{i}{constants.MIDI_EXTENSION}")
+            else:
+                _output_file = output_dir / (input_file.stem + constants.MIDI_EXTENSION)
+
+            metadata_file: FilePath = metadata_dir / (_output_file.stem + constants.METADATA_EXTENSION)
+            
+            output_files.append(_output_file)
+
+            score.write("midi", fp=_output_file)
+            
+            with open(metadata_file, "w") as f:
+                json.dump(metadata.tokenised_metadata.to_dict(), f, indent=4)
+
+        return output_files
+
     def conversion(self, input_file: FilePath, output_dir: FilePath) -> List[ConversionOutcome]:
-        return Generics.generic_music21_conversion(input_file, output_dir.joinpath(input_file.stem + ".midi"), self.music21_func)
-    
-    
+        return Generics.generic_music21_conversion(input_file, output_dir, self.music21_func)
+
+
 class midi_to_tokens(SingleFileConversionFunction):
     
     def __init__(self, tokeniser: MyTokeniser):
@@ -511,7 +538,7 @@ class midi_to_tokens(SingleFileConversionFunction):
     def skip_single_file(self, input_file, output_dir):
         return Generics.same_name_skip(input_file, output_dir)
 
-    def conversion(self, input_file: FilePath, output_dir: dirPath) -> List[ConversionOutcome]:    
+    def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:    
         import json
 
         with input_file.parent.joinpath(constants.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
@@ -549,5 +576,62 @@ class midi_to_tokens(SingleFileConversionFunction):
         pass
 
 
+class tokens_to_midi(SingleFileConversionFunction):
+    
+    def __init__(self, tokeniser: MyTokeniser):
+        """
+        Initialise a new instance of the tokens_to_midi class.
+        
+        Parameters:
+            tokeniser (MyTokeniser): An instance of MyTokeniser used for decoding tokens into MIDI files.
+        """
+        self.tokeniser = tokeniser
+
+    def skip_single_file(self, input_file, output_dir):
+        return Generics.same_name_skip(input_file, output_dir)
+
+    def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
+        import json
+
+        try:
+            with input_file.open("r", encoding="utf-8") as f:
+                jso = json.load(f)
+            
+            output_path = output_dir / (input_file.stem + ".midi")
+            
+            
+            midi.write("midi", fp=output_path)
+
+        except Exception as e:
+            return [ConversionOutcome(
+                input_file=input_file,
+                successful=False,
+                error_message=Generics.str_error(e),
+                halt=False
+            )]
+
+        try:
+            midi = self.tokeniser.decode(jso)
+        
+        except Exception as e:
+            return [ConversionOutcome(
+                input_file=input_file,
+                successful=False,
+                error_message=Generics.str_error(e),
+                halt=False
+            )]
+        
+        else:
+            
+
+            return [ConversionOutcome(
+                input_file=input_file,
+                output_files=[output_path],
+                successful=True
+            )]
+
+
+
 if __name__ == "__main__":
+
     pass

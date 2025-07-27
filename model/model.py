@@ -1,17 +1,16 @@
 from transformers import GPT2Config, GPT2LMHeadModel
 from pathlib import Path
-from tokeniser.tokeniser import MyTokeniser
+from tokeniser.tokeniser import MyTokeniser, Metadata
 from model.dataloader import MyTokenDataset
 from typing import *
 import constants
-
-
 
 
 class MyModel(GPT2LMHeadModel):
     OWN_PATH = Path(__file__)
     OWN_DIR = OWN_PATH.parent
     TRAINING_DIR = OWN_DIR / constants.TRAINING_DIR_NAME
+    OUTPUT_DIR = OWN_DIR / constants.OUTPUT_DIR_NAME
     
     @staticmethod
     def build_config(tokeniser: MyTokeniser = MyTokeniser()) -> GPT2Config:
@@ -76,12 +75,12 @@ class MyModel(GPT2LMHeadModel):
             print("Initialising new model with given tokeniser.")
             shutil.rmtree(cls.TRAINING_DIR, ignore_errors=True)
             cls.TRAINING_DIR.mkdir(parents=True, exist_ok=False)
-            return cls(MyModel.build_config(tokeniser)), False
+            return cls(cls.build_config(tokeniser)), False
 
     @classmethod
     def train_from_tokens_dir(cls, tokens_dir: Path, tokeniser: MyTokeniser):
         from transformers import Trainer, TrainingArguments, trainer_utils
-        MyModel.TRAINING_DIR.mkdir(parents=True, exist_ok=True)
+        cls.TRAINING_DIR.mkdir(parents=True, exist_ok=True)
 
 
         model, loaded = cls.load_or_create(tokeniser)
@@ -99,8 +98,8 @@ class MyModel(GPT2LMHeadModel):
             copy_inputs_as_labels=False,
             shift_labels=False,
             pad_on_left=False,
-            inputs_kwarg_name="input_ids",
-            labels_kwarg_name="labels",
+            inputs_kwarg_name=constants.INPUT_IDS_KEY,
+            labels_kwarg_name=constants.LABELS_KEY,
             pad_token_id=tokeniser.vocab[tokeniser.pad_token],
             labels_pad_idx=-100
         )
@@ -124,6 +123,47 @@ class MyModel(GPT2LMHeadModel):
         trainer.model.save_pretrained(cls.TRAINING_DIR)
         if not loaded:
             tokeniser.save_pretrained(cls.TRAINING_DIR)
+
+    @classmethod
+    def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata):
+        import torch, json, miditok
+        cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Load tokeniser and model
+        tokeniser = MyTokeniser.from_pretrained(cls.TRAINING_DIR)
+
+        t, err = tokeniser.valid_metadata(metadata_tokens)
+        if not t:
+            raise ValueError(f"Invalid metadata tokens: {err}")
+
+        model = cls.from_pretrained(cls.TRAINING_DIR)
+        model.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
+
+        tok_seq = miditok.TokSequence(tokens=metadata_tokens.to_list())
+
+        tokeniser.complete_sequence(tok_seq, complete_bytes=True)
+
+        if tokeniser.is_trained:
+            tokeniser.encode_token_ids(tok_seq)
+
+        print(tok_seq.ids)
+
+        input_ids = torch.tensor([tok_seq.ids], dtype=torch.long).to(device)
+
+        # Generate
+        with torch.no_grad():
+            generated = model.generate(input_ids, generation_config=model.generation_config)
+
+        # Decode back to tokens
+        output_ids = generated[0].tolist()
+
+        with open(cls.OUTPUT_DIR / f"generated{constants.TOKENS_EXTENSION}", "w") as f:
+            json.dump({constants.INPUT_IDS_KEY: output_ids,
+                       constants.METADATA_KEY: metadata_tokens.to_dict(),
+                       constants.TOKENISER_HASH_KEY: tokeniser.hexa_hash}, f, indent=4)
+
 
 if __name__ == "__main__":
     tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 

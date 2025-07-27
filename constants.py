@@ -13,13 +13,14 @@ METADATA_DIR_NAME: str = "metadata_files"
 INPUT_IDS_KEY: str = "input_ids"
 LABELS_KEY: str = "labels"
 TOKENISER_HASH_KEY: str = "tokeniser_hash"
+METADATA_KEY: str = "metadata"
 
 TIME_SIGNATURE_RANGE_FIELD: str = "time_signature_range"
-MAX_BARS_FIELD: str = "max_bars"
+MAX_BARS_FIELD: str = "max_bar_embedding"
 
 # Constants for tokeniser configuration
 MODIFYABLE_TOKENISER_CONFIG_FIELDS: dict[str, Any] = {
-    TIME_SIGNATURE_RANGE_FIELD: {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4]},
+    TIME_SIGNATURE_RANGE_FIELD: {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4], 2: [1, 2, 3, 4]},
     MAX_BARS_FIELD: 33
 }
 
@@ -82,6 +83,7 @@ INTERVAL_COMPLEXITY_FIELD: str = "interval_complexity"
 # Model constants
 TRAINING_DIR_NAME: str = "training"
 LOGS_DIR_NAME: str = "logs"
+OUTPUT_DIR_NAME: str = "output"
 
 MYMODEL_BASE_CONFIG: dict[str, Any] = {
     "architectures": ["MyModel"],

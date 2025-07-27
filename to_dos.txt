@@ -7,10 +7,16 @@
 - test model and adjust weights 
 - documentation
 - upload tokeniser and model to huggingface hub / maybe together # at the end of project maybe and then give links in readme
-- use data augmentation from miditok
+
 - save tokenseqs that a model was trained on in database and filter out at dataset creation
 - maybe make loading of MyModel and MyTokeniser bulletproof
 - do what audiveris says on its website to enhance transcription quality
+- import useful constants from packages into own constant aliases
+- clean up constants naming
+- for generate classmethod catch non existent saved model 
+- use data augmentation from miditok !!! transpose to every key and get *14 data scale
+- maybe also split scores at repitition lines or others
+- maybe split pdfs by pages
 
 
 INFO:
