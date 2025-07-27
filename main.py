@@ -24,20 +24,20 @@ if __name__ == "__main__":
     #     metadata_tokens=metadata_tokens
     # )
 
-    # tokeniser = MyTokeniser()
-    # pipeline = construct_music_pipeline(tokeniser=tokeniser)
-    # converter = Converter(pipeline=pipeline)
-    # converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens_in"], batch_if_possible=False)
+    tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser",)
+    pipeline = construct_music_pipeline(tokeniser=tokeniser)
+    converter = Converter(pipeline=pipeline)
+    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["mxl_in"], batch_if_possible=False)
 
 
-    import json
-    l = []
-    for file in Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in").glob("*.json"):
+    # import json
+    # l = []
+    # for file in Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in").glob("*.json"):
     
-        with open(file, "r") as f:
-            data = json.load(f)
-            l.append(len(data["labels"]))
+    #     with open(file, "r") as f:
+    #         data = json.load(f)
+    #         l.append(len(data["labels"]))
     
-    print(f"Average length of tokens: {sum(l) / len(l)}")
-    print(f"Total number of tokens: {sum(l)}")
+    # print(f"Average length of tokens: {sum(l) / len(l)}")
+    # print(f"Total number of tokens: {sum(l)}")
     

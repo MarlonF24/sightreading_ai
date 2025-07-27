@@ -1,5 +1,4 @@
 from typing import *
-from ..tokeniser.tokeniser_constants import TOKENS_TOKENISER_HASH_KEY
 
 # Model constants
 TRAINING_DIR_NAME: str = "training"
@@ -7,7 +6,7 @@ LOGS_DIR_NAME: str = "logs"
 OUTPUT_DIR_NAME: str = "output"
 
 
-TOKENISER_HASH_FIELD: str = TOKENS_TOKENISER_HASH_KEY
+TOKENISER_HASH_FIELD: str = "tokeniser_hash"
 VOCAB_SIZE_FIELD: str = "vocab_size"
 BOS_TOKEN_ID_FIELD: str = "bos_token_id"
 EOS_TOKEN_ID_FIELD: str = "eos_token_id"
