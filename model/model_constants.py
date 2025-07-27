@@ -1,5 +1,5 @@
 from typing import *
-from .tokeniser import TOKENS_TOKENISER_HASH_KEY
+from ..tokeniser.tokeniser_constants import TOKENS_TOKENISER_HASH_KEY
 
 # Model constants
 TRAINING_DIR_NAME: str = "training"

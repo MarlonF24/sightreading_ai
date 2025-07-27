@@ -463,7 +463,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         from tokeniser.tokeniser import Metadata
         import music21, json
 
-        metadata_dir: DirPath = output_dir / constants.data_pipeline.METADATA_DIR_NAME
+        metadata_dir: DirPath = output_dir / constants.data_pipeline_constants.METADATA_DIR_NAME
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
 
         #try:
@@ -541,7 +541,7 @@ class midi_to_tokens(SingleFileConversionFunction):
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:    
         import json
 
-        with input_file.parent.joinpath(constants.data_pipeline.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
+        with input_file.parent.joinpath(constants.data_pipeline_constants.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
             metadata = json.load(f)
 
         if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):

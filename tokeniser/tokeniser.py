@@ -6,9 +6,9 @@ from dataclasses import dataclass
 
 class Metadata:
     # weights for complexity measures
-    DENSITY_COMPLEXITY_WEIGHT = constants.tokeniser.DENSITY_COMPLEXITY_WEIGHT
-    DURATION_COMPLEXITY_WEIGHT = constants.tokeniser.DURATION_COMPLEXITY_WEIGHT
-    INTERVAL_COMPLEXITY_WEIGHT = constants.tokeniser.INTERVAL_COMPLEXITY_WEIGHT
+    DENSITY_COMPLEXITY_WEIGHT = constants.tokeniser_constants.DENSITY_COMPLEXITY_WEIGHT
+    DURATION_COMPLEXITY_WEIGHT = constants.tokeniser_constants.DURATION_COMPLEXITY_WEIGHT
+    INTERVAL_COMPLEXITY_WEIGHT = constants.tokeniser_constants.INTERVAL_COMPLEXITY_WEIGHT
 
     def __init__(self, score: music21.stream.base.Score):
         self._score: music21.stream.base.Score = score
@@ -183,16 +183,16 @@ class Metadata:
 
         def to_dict(self) -> Dict[str, int]:
             return {
-                constants.tokeniser.KEY_SIGNATURE_FIELD: f"{constants.tokeniser.KEY_SIG_TOKEN_PREFIX}{self.key_signature}",
-                constants.tokeniser.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signature}",
-                constants.tokeniser.RH_CLEF_FIELD: f"{constants.tokeniser.CLEF_TOKEN_PREFIX}{self.rh_clef}",
-                constants.tokeniser.LH_CLEF_FIELD: f"{constants.tokeniser.CLEF_TOKEN_PREFIX}{self.lh_clef}",
-                constants.tokeniser.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
-                constants.tokeniser.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
-                constants.tokeniser.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
-                constants.tokeniser.DENSITY_COMPLEXITY_FIELD: f"{constants.tokeniser.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
-                constants.tokeniser.DURATION_COMPLEXITY_FIELD: f"{constants.tokeniser.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
-                constants.tokeniser.INTERVAL_COMPLEXITY_FIELD: f"{constants.tokeniser.INTERVAL_COMPL_TOKEN_PREFIX}{self.interval_complexity}"
+                constants.tokeniser_constants.KEY_SIGNATURE_FIELD: f"{constants.tokeniser_constants.KEY_SIG_TOKEN_PREFIX}{self.key_signature}",
+                constants.tokeniser_constants.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signature}",
+                constants.tokeniser_constants.RH_CLEF_FIELD: f"{constants.tokeniser_constants.CLEF_TOKEN_PREFIX}{self.rh_clef}",
+                constants.tokeniser_constants.LH_CLEF_FIELD: f"{constants.tokeniser_constants.CLEF_TOKEN_PREFIX}{self.lh_clef}",
+                constants.tokeniser_constants.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
+                constants.tokeniser_constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
+                constants.tokeniser_constants.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
+                constants.tokeniser_constants.DENSITY_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
+                constants.tokeniser_constants.DURATION_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
+                constants.tokeniser_constants.INTERVAL_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.INTERVAL_COMPL_TOKEN_PREFIX}{self.interval_complexity}"
             }
         
         def to_list(self) -> List[str]:
@@ -229,12 +229,12 @@ class MyTokeniserConfig(miditok.classes.TokenizerConfig):
             :param max_bars: Maximum number of bars for embedding.
             """
             
-            config = constants.tokeniser.MYTOKENISER_BASE_CONFIG.copy()
+            config = constants.tokeniser_constants.MYTOKENISER_BASE_CONFIG.copy()
             if time_signature_range:
-                config[constants.tokeniser.TIME_SIGNATURE_RANGE_FIELD] = time_signature_range
+                config[constants.tokeniser_constants.TIME_SIGNATURE_RANGE_FIELD] = time_signature_range
 
             if max_bars:
-                config[constants.tokeniser.MAX_BARS_FIELD] = max_bars
+                config[constants.tokeniser_constants.MAX_BARS_FIELD] = max_bars
 
             super().__init__(**config)
                    
@@ -250,9 +250,9 @@ class MyTokeniser(miditok.REMI):
 
         super().__init__(tokenizer_config=tokenizer_config, params=params)
 
-        self.bos_token = constants.tokeniser.BOS_TOKEN
-        self.eos_token = constants.tokeniser.EOS_TOKEN
-        self.pad_token = constants.tokeniser.PAD_TOKEN
+        self.bos_token = constants.tokeniser_constants.BOS_TOKEN
+        self.eos_token = constants.tokeniser_constants.EOS_TOKEN
+        self.pad_token = constants.tokeniser_constants.PAD_TOKEN
 
         # trained tokenisers should have their whole vocab initialised again,
         # untrained ones get theirs created again, without our metadata tokens        
@@ -270,7 +270,7 @@ class MyTokeniser(miditok.REMI):
         tok_seq = self.encode(input_file, encode_ids=True, no_preprocess_score=False, attribute_controls_indexes=None)
 
 
-        return {constants.tokeniser.TOKENS_INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids, constants.tokeniser.TOKENS_LABELS_KEY: tok_seq.ids, constants.tokeniser.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash}
+        return {constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids, constants.tokeniser_constants.TOKENS_LABELS_KEY: tok_seq.ids, constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash}
 
     def encode_metadata(self, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> miditok.TokSequence:
         tokenised_metadata = Metadata.TokenisedMetadata.type_to_dict(tokenised_metadata)
@@ -292,9 +292,9 @@ class MyTokeniser(miditok.REMI):
 
         with open(output_file, "w") as f:
             json.dump({
-                constants.tokeniser.TOKENS_INPUT_IDS_KEY: generated_tokens,
-                constants.tokeniser.TOKENS_METADATA_KEY: metadata,
-                constants.tokeniser.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash
+                constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: generated_tokens,
+                constants.tokeniser_constants.TOKENS_METADATA_KEY: metadata,
+                constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash
             }, f, indent=4)
 
     def train_BPE(self, data_dir: Path):
@@ -308,26 +308,26 @@ class MyTokeniser(miditok.REMI):
 
         print(f"Training BPE on {len(files)} .{constants.MIDI_EXTENSION} files in {data_dir}")
 
-        self.train(vocab_size=self.vocab_size * constants.tokeniser.BPE_VOCAB_SCALE_FACTOR, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, files))
+        self.train(vocab_size=self.vocab_size * constants.tokeniser_constants.BPE_VOCAB_SCALE_FACTOR, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, files))
 
         # Generics.clear_n_terminal_lines(2)
     
 
     def add_key_signatures_to_vocab(self) -> None:
         for i in range(-7, 8):
-            self.add_to_vocab(constants.tokeniser.KEY_SIG_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser_constants.KEY_SIG_TOKEN_PREFIX + str(i))
 
 
     def add_clefs_to_vocab(self) -> None:
-        for clef in self.config.additional_params[constants.tokeniser.CLEF_FIELD_NAME]:
-            self.add_to_vocab(constants.tokeniser.CLEF_TOKEN_PREFIX + clef)
+        for clef in self.config.additional_params[constants.tokeniser_constants.CLEF_FIELD_NAME]:
+            self.add_to_vocab(constants.tokeniser_constants.CLEF_TOKEN_PREFIX + clef)
 
 
     def add_complexities_to_vocab(self) -> None:
         for i in range(1, 11):
-            self.add_to_vocab(constants.tokeniser.DENSITY_COMPL_TOKEN_PREFIX + str(i))
-            self.add_to_vocab(constants.tokeniser.DURATION_COMPL_TOKEN_PREFIX + str(i))
-            self.add_to_vocab(constants.tokeniser.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser_constants.DENSITY_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser_constants.DURATION_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser_constants.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
 
     # TODO: Maybe find a way to prevent false negatives, but wed need to extract which lists in the config have a predifined order
     # and which ones are just sets like the clefs, time signatures,
@@ -347,22 +347,22 @@ class MyTokeniser(miditok.REMI):
 
         tokenised_data = Metadata.TokenisedMetadata.type_to_dict(tokenised_data)
         
-        if (t := tokenised_data[constants.tokeniser.NUM_MEASURES_FIELD]) not in self.vocab:
+        if (t := tokenised_data[constants.tokeniser_constants.NUM_MEASURES_FIELD]) not in self.vocab:
             res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.tokeniserMAX_BARS_FIELD]} Bars\n"
 
-        if (t := tokenised_data[constants.tokeniser.TIME_SIGNATURE_FIELD]) not in self.vocab:
+        if (t := tokenised_data[constants.tokeniser_constants.TIME_SIGNATURE_FIELD]) not in self.vocab:
             res += f"Invalid time signature: {t} not in {self.config.time_signature_range} Time Signatures\n"
 
-        if (c := tokenised_data[constants.tokeniser.RH_CLEF_FIELD]) not in self.vocab:
-            res += f"Invalid RH clef: {c} not in {self.config.additional_params[constants.tokeniser.CLEF_FIELD_NAME]} Clefs\n"
+        if (c := tokenised_data[constants.tokeniser_constants.RH_CLEF_FIELD]) not in self.vocab:
+            res += f"Invalid RH clef: {c} not in {self.config.additional_params[constants.tokeniser_constants.CLEF_FIELD_NAME]} Clefs\n"
 
-        if (c := tokenised_data[constants.tokeniser.LH_CLEF_FIELD]) not in self.vocab:
-            res += f"Invalid LH clef: {c} not in {self.config.additional_params[constants.tokeniser.CLEF_FIELD_NAME]} Clefs\n"
+        if (c := tokenised_data[constants.tokeniser_constants.LH_CLEF_FIELD]) not in self.vocab:
+            res += f"Invalid LH clef: {c} not in {self.config.additional_params[constants.tokeniser_constants.CLEF_FIELD_NAME]} Clefs\n"
 
-        if (l := tokenised_data[constants.tokeniser.LOWEST_PITCH_FIELD]) not in self.vocab:
+        if (l := tokenised_data[constants.tokeniser_constants.LOWEST_PITCH_FIELD]) not in self.vocab:
             res += f"Invalid lowest pitch: {l} not in MIDI range {self.config.pitch_range}\n"
 
-        if (h := tokenised_data[constants.tokeniser.HIGHEST_PITCH_FIELD]) not in self.vocab:
+        if (h := tokenised_data[constants.tokeniser_constants.HIGHEST_PITCH_FIELD]) not in self.vocab:
             res += f"Invalid highest pitch: {h} not in MIDI range {self.config.pitch_range}\n"
 
         if res:

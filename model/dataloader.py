@@ -28,7 +28,7 @@ class MyTokenDataset(Dataset):
 
         self.files_paths = [
             file for file in files_paths
-            if json.loads(file.read_text())[constants.tokeniser.TOKENS_TOKENISER_HASH_KEY] == self.tokeniser.hexa_hash
+            if json.loads(file.read_text())[constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY] == self.tokeniser.hexa_hash
         ]
 
         if not self.files_paths:
@@ -44,18 +44,18 @@ class MyTokenDataset(Dataset):
     def __getitem__(self, idx):
         with self.files_paths[idx].open("r") as f:
             data = json.load(f)
-            input_ids = data[constants.tokeniser.TOKENS_INPUT_IDS_KEY]
+            input_ids = data[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]
             input_ids.insert(0, self.bos_token_id)
             input_ids.append(self.eos_token_id)
 
-            if len(input_ids) < len(data[constants.tokeniser.TOKENS_LABELS_KEY]):
-                raise ValueError(f"Corrupt data. Found Input IDs length ({len(input_ids)}) is less than labels length ({len(data[constants.tokeniser.TOKENS_LABELS_KEY])}) in file {self.files_paths[idx]}. Before training, ensure that the data is correctly tokenised with a MyTokeniser.")
+            if len(input_ids) < len(data[constants.tokeniser_constants.TOKENS_LABELS_KEY]):
+                raise ValueError(f"Corrupt data. Found Input IDs length ({len(input_ids)}) is less than labels length ({len(data[constants.tokeniser_constants.TOKENS_LABELS_KEY])}) in file {self.files_paths[idx]}. Before training, ensure that the data is correctly tokenised with a MyTokeniser.")
 
-            labels = [self.pad_token_id] * (len(input_ids) - len(labels)) + data[constants.tokeniser.TOKENS_LABELS_KEY]
+            labels = [self.pad_token_id] * (len(input_ids) - len(labels)) + data[constants.tokeniser_constants.TOKENS_LABELS_KEY]
 
             return {
-                constants.tokeniser.TOKENS_INPUT_IDS_KEY: LongTensor(input_ids),
-                constants.tokeniser.TOKENS_LABELS_KEY: LongTensor(labels),
+                constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: LongTensor(input_ids),
+                constants.tokeniser_constants.TOKENS_LABELS_KEY: LongTensor(labels),
             }
 
                 

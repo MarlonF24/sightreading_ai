@@ -36,9 +36,9 @@ class Converter():
             pipeline_dir_path (DirPath, optional): The path to the dir where the pipeline shall be located. Defaults to the parent directory of the current file's directory.
         """
         # environment.set('musescoreDirectPNGPath', musescore_path)
-        self.pipeline_dir_path: DirPath = pipeline_dir_path / constants.data_pipeline.CONVERTER_PIPELINE_DIR_NAME
-        self.logs_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline.CONVERTER_LOGS_DIR_NAME
-        self.data_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline.CONVERTER_DATA_DIR_DEFAULT_NAME
+        self.pipeline_dir_path: DirPath = pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_PIPELINE_DIR_NAME
+        self.logs_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_LOGS_DIR_NAME
+        self.data_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_DATA_DIR_DEFAULT_NAME
         self.logs_dir_path.mkdir(parents=True, exist_ok=True)
         self.data_dir_path.mkdir(parents=True, exist_ok=True)
 
