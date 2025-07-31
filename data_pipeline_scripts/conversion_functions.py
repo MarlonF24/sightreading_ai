@@ -183,7 +183,7 @@ class Generics:
             )]
        
         else:
-            return interpreter(result.returncode, result.stderr.strip(), result.stdout.strip(), input_path, output_dir)  
+            return interpreter(result.returncode, result.stderr, result.stdout, input_path, output_dir)  
 
     @staticmethod
     def generic_music21_conversion(
@@ -225,7 +225,70 @@ class Generics:
                         warning_messages=[str(w.message) for w in caught_warnings])]
 
 
+class pdf_preprocessing(SingleFileConversionFunction):
+    """
+    A class representing a single file conversion function for preprocessing PDF files.
+    """
+    def __init__(self, pages_per_split: int = 1):
+        self.pages_per_split = pages_per_split
+
+    def skip_single_file(self, input_file: FilePath, output_dir: DirPath) -> List[FilePath]:
+        return Generics.same_name_skip(input_file, output_dir)
     
+    def clean_up(self, input_file: FilePath, output_dir: DirPath) -> None:
+        pass
+
+    def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
+        from PyPDF2 import PdfReader, PdfWriter
+        
+        try:
+            # Read the input PDF
+            reader = PdfReader(str(input_file))
+            total_pages = len(reader.pages)
+
+            output_paths = []
+            
+            # Calculate number of splits needed
+            num_splits = (total_pages + self.pages_per_split - 1) // self.pages_per_split  # Ceiling division
+
+            for split_num in range(num_splits):
+                start_page = split_num * self.pages_per_split
+                end_page = min(start_page + self.pages_per_split, total_pages)
+
+                # Create new PDF writer for this split
+                writer = PdfWriter()
+                
+                # Add pages to this split
+                for page_num in range(start_page, end_page):
+                    writer.add_page(reader.pages[page_num])
+                
+                # Generate output filename
+                stem = input_file.stem
+                output_filename = f"{stem}_part_{split_num + 1:03d}.pdf"
+                output_path = output_dir / output_filename
+                
+                # Write the split PDF
+                with open(output_path, 'wb') as output_file:
+                    writer.write(output_file)
+                
+                output_paths.append(output_path)
+        
+        except Exception as e:
+            return [ConversionOutcome(
+                input_file=input_file,
+                successful=False,
+                error_message=Generics.str_error(e),
+                halt=False
+            )]
+        
+        else:
+            return [ConversionOutcome(
+                input_file=input_file,
+                output_files=output_paths,
+                successful=True
+            )]
+
+
 class pdf_to_mxl(BatchConversionFunction):   
     """
     A class representing a batch conversion function for converting PDF files to MXL files using Audiveris.
@@ -274,14 +337,29 @@ class pdf_to_mxl(BatchConversionFunction):
         Returns:
             List[ConversionOutcome]: A list containing a single ConversionOutcome object representing the outcome of the conversion process.
         """
-        if temp := "Could not export since transcription did not complete successfully" in stdout:
-            return [ConversionOutcome(
-                input_file=input_file,
-                successful=False,
-                error_message=temp
-            )]
 
-        output_files = [file for file in output_dir.glob(f"{input_file.stem}*.mxl")]
+        critical_messages = ["Could not export since transcription did not complete successfully",
+                             "resolution is too low"]
+        
+        if stdout:
+            for temp in critical_messages:
+                if temp in stdout:
+                    return [ConversionOutcome(
+                        input_file=input_file,
+                        successful=False,
+                        error_message=temp
+                    )]
+
+        if stderr:
+            for temp in critical_messages:
+                if temp in stderr:
+                    return [ConversionOutcome(
+                        input_file=input_file,
+                        successful=False,
+                        error_message=temp
+                    )]        
+
+        output_files = [file for file in output_dir.glob(f"{input_file.stem}*{constants.MXL_EXTENSION}")]
         
         if returncode == 0:
 
@@ -332,8 +410,10 @@ class pdf_to_mxl(BatchConversionFunction):
         self.batch_clean_up(Path(""), output_dir)
 
     def single_file_conversion(self, input_file: FilePath, output_dir: DirPath, overwrite: bool = True):  
+        from data_pipeline_scripts import enhance_resolution 
+        # resolution.convert(input_file, input_file)
         command = ["java","--add-opens", "java.base/java.nio=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED", "-cp", self.classpath, "Audiveris", "-batch", "-export", "-output", str(output_dir), "--", str(input_file)]
-         
+          
         return Generics.generic_subprocess_conversion(
             input_path=input_file, 
             output_dir=output_dir, 
@@ -461,7 +541,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
             output_file (FilePath): The path where the converted MIDI file shall be saved. !! This address is changed to save the MIDI file and metadata in separate dirs inside the original dir address.
         """
         from tokeniser.tokeniser import Metadata
-        import music21, json
+        import music21, json, warnings
 
         metadata_dir: DirPath = output_dir / constants.data_pipeline_constants.METADATA_DIR_NAME
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
@@ -479,7 +559,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         splits = [1]  
         
         for i, measure in enumerate(measures, start=1):
-            lol =measure.rightBarline
+            lol = measure.rightBarline
             if measure.finalBarline:
                 splits.append(i)
         
@@ -489,34 +569,47 @@ class musicxml_to_midi(SingleFileConversionFunction):
         split_scores = [score.measures(splits[i], splits[i + 1]) for i in range(len(splits) - 1)]
 
         output_files: List[FilePath] = []
+        error_counter = 0
+        _warnings = []
+
         for i, score in enumerate(split_scores, start=1):
-            metadata = Metadata(score)
-            if not metadata.rh_clefs:
-                pass
+            try:
+                metadata = Metadata(score)
 
-            if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
-                raise ValueError(t[0].error_message)
 
-            lh = score.parts[1]
+                if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
+                    raise ValueError(t[0].error_message)
+                
 
-            lh.removeByClass(music21.instrument.Instrument)
-        
-            piano_lh = music21.instrument.ElectricPiano()
-            lh.insert(0, piano_lh)
+                lh = score.parts[1]
 
-            if len(split_scores) > 1:
-                _output_file = output_dir / (input_file.stem + f"_{i}{constants.MIDI_EXTENSION}")
-            else:
-                _output_file = output_dir / (input_file.stem + constants.MIDI_EXTENSION)
-
-            metadata_file: FilePath = metadata_dir / (_output_file.stem + constants.METADATA_EXTENSION)
+                lh.removeByClass(music21.instrument.Instrument)
             
-            output_files.append(_output_file)
+                piano_lh = music21.instrument.ElectricPiano()
+                lh.insert(0, piano_lh)
 
-            score.write("midi", fp=_output_file)
-            
-            with open(metadata_file, "w") as f:
-                json.dump(metadata.tokenised_metadata.to_dict(), f, indent=4)
+                if len(split_scores) > 1:
+                    _output_file = output_dir / (input_file.stem + f"_{i}{constants.MIDI_EXTENSION}")
+                else:
+                    _output_file = output_dir / (input_file.stem + constants.MIDI_EXTENSION)
+
+                metadata_file: FilePath = metadata_dir / (_output_file.stem + constants.METADATA_EXTENSION)
+                
+                output_files.append(_output_file)
+
+                score.write("midi", fp=_output_file)
+                
+                with open(metadata_file, "w") as f:
+                    json.dump(metadata.tokenised_metadata.to_dict(), f, indent=4)
+
+            # note that part of this score (one exercise) couldn't be processed
+            except Exception as e:
+                _warnings.append(f"{i}. exercise failed processing: {Generics.str_error(e)}\n")
+                warnings.warn(_warnings[-1])
+                error_counter += 1
+
+            if error_counter == len(split_scores):
+                raise ValueError(f"All {len(split_scores)} exercises failed processing: {_warnings}")
 
         return output_files
 
@@ -633,5 +726,4 @@ class tokens_to_midi(SingleFileConversionFunction):
 
 
 if __name__ == "__main__":
-
     pass

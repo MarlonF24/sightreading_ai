@@ -293,11 +293,18 @@ def construct_music_pipeline(tokeniser: MyTokeniser, musescore_path: str = r'C:\
     #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
     
     tokens_in = PipelineStage("tokens_in", constants.TOKENS_EXTENSION, {})
+    
     midi_in = PipelineStage("midi_in", constants.MIDI_EXTENSION, {tokens_in: conversion_functions.midi_to_tokens(tokeniser)})
+    
     musicxml_in = PipelineStage("musicxml_in", constants.MUSICXML_EXTENSION, {midi_in: conversion_functions.musicxml_to_midi(tokeniser)})
+    
     mxl_in = PipelineStage("mxl_in", constants.MXL_EXTENSION, {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
-    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
-    return Pipeline(tokens_in, midi_in, musicxml_in, mxl_in, pdf_in)
+    
+    pdf_preprocessed = PipelineStage("pdf_preprocessed", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
+    
+    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {pdf_preprocessed: conversion_functions.pdf_preprocessing()})
+    
+    return Pipeline(tokens_in, midi_in, musicxml_in, mxl_in, pdf_preprocessed, pdf_in)
 
 if __name__ == "__main__":
     pipeline = construct_music_pipeline(tokeniser=MyTokeniser())

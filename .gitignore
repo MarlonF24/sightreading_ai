@@ -10,3 +10,4 @@ stuff/
 model/training/
 .conda/
 requirements.txt
+*waifu2x*

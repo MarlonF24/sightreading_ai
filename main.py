@@ -24,7 +24,7 @@ if __name__ == "__main__":
     #     metadata_tokens=metadata_tokens
     # )
 
-    tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser",)
+    tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
     pipeline = construct_music_pipeline(tokeniser=tokeniser)
     converter = Converter(pipeline=pipeline)
     converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["mxl_in"], batch_if_possible=False)
