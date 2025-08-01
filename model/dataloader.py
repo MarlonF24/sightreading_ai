@@ -47,11 +47,13 @@ class MyTokenDataset(Dataset):
             input_ids = data[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]
             input_ids.insert(0, self.bos_token_id)
             input_ids.append(self.eos_token_id)
+            labels = data[constants.tokeniser_constants.TOKENS_LABELS_KEY]
 
-            if len(input_ids) < len(data[constants.tokeniser_constants.TOKENS_LABELS_KEY]):
-                raise ValueError(f"Corrupt data. Found Input IDs length ({len(input_ids)}) is less than labels length ({len(data[constants.tokeniser_constants.TOKENS_LABELS_KEY])}) in file {self.files_paths[idx]}. Before training, ensure that the data is correctly tokenised with a MyTokeniser.")
 
-            labels = [self.pad_token_id] * (len(input_ids) - len(labels)) + data[constants.tokeniser_constants.TOKENS_LABELS_KEY]
+            if len(input_ids) < len(labels):
+                raise ValueError(f"Corrupt data. Found Input IDs length ({len(input_ids)}) is less than labels length ({len(labels)}) in file {self.files_paths[idx]}. Before training, ensure that the data is correctly tokenised with a MyTokeniser.")
+
+            labels = [-100] * (len(input_ids) - len(labels)) + data[constants.tokeniser_constants.TOKENS_LABELS_KEY]
 
             return {
                 constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: LongTensor(input_ids),

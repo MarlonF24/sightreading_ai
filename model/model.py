@@ -58,20 +58,21 @@ class MyModel(GPT2LMHeadModel):
                         load = False
                     case _:
                         raise RuntimeError("Training aborted.")
+    
+        elif any(files_present):
+            print("⚠️ Some, but not all files for loading are present.")
+            if not input("Do you want to reinitialise the training directory with a new model for the given tokeniser? [y/n] ").strip().lower() == "y":
+                raise RuntimeError("Training aborted.")
+            load = False
+        
         else:
+            print("No files for loading found.")
             load = False
 
         if load:
             print("Loading model with given tokeniser...")
             return cls.from_pretrained(cls.TRAINING_DIR), True
         else:
-            if any(files_present):
-                print("⚠️ Some, but not all files for loading are present.")
-                if not input("Do you want to reinitialise the training directory with a new model for the given tokeniser? [y/n] ").strip().lower() == "y":
-                    raise RuntimeError("Training aborted.")
-            else:
-                print("No files to load found.")
-
             print("Initialising new model with given tokeniser.")
             shutil.rmtree(cls.TRAINING_DIR, ignore_errors=True)
             cls.TRAINING_DIR.mkdir(parents=True, exist_ok=False)
@@ -153,7 +154,7 @@ class MyModel(GPT2LMHeadModel):
         # Decode back to tokens
         output_ids = generated[0].tolist()
 
-        tokeniser.save_generated_tokens(cls.OUTPUT_DIR / f"generated{constants.tokeniser_constants.TOKENS_EXTENSION}", output_ids, metadata_tokens)
+        tokeniser.save_generated_tokens(cls.OUTPUT_DIR / f"generated{constants.TOKENS_EXTENSION}", output_ids, metadata_tokens)
 
 if __name__ == "__main__":
     tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 

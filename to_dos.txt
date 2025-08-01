@@ -11,15 +11,12 @@
 - save tokenseqs that a model was trained on in database and filter out at dataset creation
 - maybe make loading of MyModel and MyTokeniser bulletproof
 - do what audiveris says on its website to enhance transcription quality
-- import useful constants from packages into own constant aliases
-- clean up constants naming
 - for generate classmethod catch non existent saved model 
-- use data augmentation from miditok !!! transpose to every key and get *14 data scale
-- maybe also split scores at repitition lines or others
-- maybe split pdfs by pages
+- use data augmentation from miditok !!! transpose to every key and get *15 data scale
 - write generic clean_up function that takes extention and removes all nonfitting files
 -think about this: Slide forward by 1 page (i.e., page 1+2, then 2+3, then 3+4...)
-
+- centralise -100 as label padding in constants
+- fix that we can also train with untrained tokeniser
 
 INFO:
     - save_pretrained is like save only with the option to push to hub

@@ -292,6 +292,9 @@ def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool, muses
     #musicxml_out = PipelineStage("musicxml_out" , ".musicxml", midi_in)
     #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
     
+    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {})
+    tokens_out = PipelineStage("tokens_out", constants.TOKENS_EXTENSION, {midi_out: conversion_functions.tokens_to_midi(tokeniser)})
+
     tokens_in = PipelineStage("tokens_in", constants.TOKENS_EXTENSION, {})
     
     midi_in = PipelineStage("midi_in", constants.MIDI_EXTENSION, {tokens_in: conversion_functions.midi_to_tokens(tokeniser)})
@@ -305,7 +308,7 @@ def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool, muses
 
     pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {pdf_preprocessed: conversion_functions.pdf_preprocessing()} if pdf_preprocess else {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
 
-    pipeline = Pipeline(tokens_in, midi_in, musicxml_in, mxl_in, pdf_in)
+    pipeline = Pipeline(midi_out, tokens_out, tokens_in, midi_in, musicxml_in, mxl_in, pdf_in)
 
     if pdf_preprocess:
         pipeline.add_stage(pdf_preprocessed)

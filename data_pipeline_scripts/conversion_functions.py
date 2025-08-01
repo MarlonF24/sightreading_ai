@@ -684,18 +684,45 @@ class tokens_to_midi(SingleFileConversionFunction):
 
     def skip_single_file(self, input_file, output_dir):
         return Generics.same_name_skip(input_file, output_dir)
+    
+    def clean_up(self, input_file, output_dir):
+        pass
 
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
-        import json
+        import json, miditok
 
         try:
             with input_file.open("r", encoding="utf-8") as f:
                 jso = json.load(f)
+
+            if (a := self.tokeniser.hexa_hash) != (b := jso[constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY]):
+                return [ConversionOutcome(
+                    input_file=input_file,
+                    successful=False,
+                    error_message=f"Tokeniser hexa hash mismatch: {a} != {b}. The model that generated these tokens has a different tokeniser than the one given.",
+                    halt=True
+                )]
             
+            ids = jso[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]
+
+            tok_seq = miditok.TokSequence(ids=ids)
+            
+
+            if self.tokeniser.is_trained:
+                tok_seq.are_ids_encoded = True
+                self.tokeniser.decode_token_ids(tok_seq)
+
+            self.tokeniser.complete_sequence(tok_seq)
+
+            if "Bar_0" not in tok_seq.tokens:
+                raise ValueError("The token sequence does not contain a Bar_0 token. This is required for the conversion to MIDI.")
+            
+
+            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[tok_seq.tokens.index("Bar_0"):])
+
             output_path = output_dir / (input_file.stem + ".midi")
-            
-            
-            midi.write("midi", fp=output_path)
+
+            # miditok.write("midi", fp=output_path)
 
         except Exception as e:
             return [ConversionOutcome(
@@ -705,20 +732,7 @@ class tokens_to_midi(SingleFileConversionFunction):
                 halt=False
             )]
 
-        try:
-            midi = self.tokeniser.decode(jso)
-        
-        except Exception as e:
-            return [ConversionOutcome(
-                input_file=input_file,
-                successful=False,
-                error_message=Generics.str_error(e),
-                halt=False
-            )]
-        
         else:
-            
-
             return [ConversionOutcome(
                 input_file=input_file,
                 output_files=[output_path],
