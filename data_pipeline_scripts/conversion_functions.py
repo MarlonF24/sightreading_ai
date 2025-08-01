@@ -469,7 +469,7 @@ class mxl_to_musicxml_unzip(SingleFileConversionFunction):
     """
     
     def skip_single_file(self, input_file, output_dir):
-        return Generics.same_name_skip()
+        return Generics.same_name_skip(input_file= input_file, output_dir=output_dir)
     
     def clean_up(self, input_file: FilePath, output_dir: DirPath):
         import shutil
@@ -526,7 +526,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         self.tokeniser = tokeniser
 
     def skip_single_file(self, input_file, output_dir):
-        return Generics.same_name_skip()
+        return Generics.same_name_skip(input_file=input_file, output_dir=output_dir)
 
     def clean_up(self, input_file, output_dir):
         pass
@@ -559,10 +559,12 @@ class musicxml_to_midi(SingleFileConversionFunction):
         splits = [1]  
         
         for i, measure in enumerate(measures, start=1):
-            lol = measure.rightBarline
             if measure.finalBarline:
                 splits.append(i)
-        
+
+        if len(splits) == 1:
+            warnings.warn("Input file does not contain any bar end lines. Either this is an exercise fragment or it is not properly formatted.")
+
         if not len(measures) in splits:
             splits.append(len(measures))
 

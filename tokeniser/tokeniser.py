@@ -1,4 +1,4 @@
-import music21, miditok, constants as constants
+import music21, miditok, constants as constants, math
 from typing import *
 from functools import cached_property, wraps
 from pathlib import Path
@@ -122,18 +122,18 @@ class Metadata:
     
     @cached_property
     def density_complexity(self) -> int:
-        note_density = Metadata.DENSITY_COMPLEXITY_WEIGHT * round(self.num_total_notes / max(self.num_measures, 1) / 2)
-        return min(10, max(1, note_density)) # Complexity (placeholder heuristic: density)
-        
+        note_density = Metadata.DENSITY_COMPLEXITY_WEIGHT * (self.num_total_notes / max(self.num_measures, 1) / 2)
+        return min(10, math.ceil(max(1, note_density))) # Complexity (placeholder heuristic: density)
+
     @cached_property
     def duration_complexity(self) -> int:
         unique_durations =  set(round(n.quarterLength, 2) for n in self.notes)
-        return min(10, max(1, Metadata.DURATION_COMPLEXITY_WEIGHT * len(unique_durations)))  # Duration complexity (how many types of durations are used?)
-    
+        return min(10, math.ceil(max(1, Metadata.DURATION_COMPLEXITY_WEIGHT * len(unique_durations))))  # Duration complexity (how many types of durations are used?)
+
     @cached_property
     def interval_complexity(self) -> int:
-        avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 0.0
-        return min(10, round(avg_interval / 2))  # Pitch complexity (based on interval size variability)
+        avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 1
+        return min(10, math.ceil(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
     # deprecated, use data property instead
     @cached_property
@@ -220,7 +220,7 @@ class MyTokeniserConfig(miditok.classes.TokenizerConfig):
         """
     
         def __init__(self, 
-                     time_signature_range: dict[int, list[int]] = None, 
+                     time_signature_range: dict[int, list[int]] = None,
                      max_bars: int = None):
             """
             Initialize the MyTokeniserConfig with custom parameters.
@@ -304,9 +304,9 @@ class MyTokeniser(miditok.REMI):
         """
         # from data_pipeline_scripts.conversion_functions import Generics
 
-        files = list(data_dir.glob(f"*.{constants.MIDI_EXTENSION}"))
+        files = list(data_dir.glob(f"*{constants.MIDI_EXTENSION}"))
 
-        print(f"Training BPE on {len(files)} .{constants.MIDI_EXTENSION} files in {data_dir}")
+        print(f"Training BPE on {len(files)} {constants.MIDI_EXTENSION} files in {data_dir}")
 
         self.train(vocab_size=self.vocab_size * constants.tokeniser_constants.BPE_VOCAB_SCALE_FACTOR, model='BPE', iterator=miditok.tokenizer_training_iterator.TokTrainingIterator(self, files))
 

@@ -287,7 +287,7 @@ class Pipeline():
         return res
     
 
-def construct_music_pipeline(tokeniser: MyTokeniser, musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_dir: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
+def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool, musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_dir: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
     #pdf_out = PipelineStage("musicxml_out" , ".musicxml", None)
     #musicxml_out = PipelineStage("musicxml_out" , ".musicxml", midi_in)
     #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
@@ -300,11 +300,17 @@ def construct_music_pipeline(tokeniser: MyTokeniser, musescore_path: str = r'C:\
     
     mxl_in = PipelineStage("mxl_in", constants.MXL_EXTENSION, {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
     
-    pdf_preprocessed = PipelineStage("pdf_preprocessed", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
+    if pdf_preprocess:
+        pdf_preprocessed = PipelineStage("pdf_preprocessed", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
+
+    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {pdf_preprocessed: conversion_functions.pdf_preprocessing()} if pdf_preprocess else {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
+
+    pipeline = Pipeline(tokens_in, midi_in, musicxml_in, mxl_in, pdf_in)
+
+    if pdf_preprocess:
+        pipeline.add_stage(pdf_preprocessed)
     
-    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {pdf_preprocessed: conversion_functions.pdf_preprocessing()})
-    
-    return Pipeline(tokens_in, midi_in, musicxml_in, mxl_in, pdf_preprocessed, pdf_in)
+    return pipeline
 
 if __name__ == "__main__":
     pipeline = construct_music_pipeline(tokeniser=MyTokeniser())

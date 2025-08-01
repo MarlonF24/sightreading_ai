@@ -24,10 +24,15 @@ if __name__ == "__main__":
     #     metadata_tokens=metadata_tokens
     # )
 
+    # tokeniser = MyTokeniser()
+    # tokeniser.train_BPE(data_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/midi_in"))
+    # tokeniser.save_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
+
     tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
-    pipeline = construct_music_pipeline(tokeniser=tokeniser)
+    # print(tokeniser.is_trained)
+    pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
     converter = Converter(pipeline=pipeline)
-    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["mxl_in"], batch_if_possible=False)
+    converter.multi_stage_conversion(converter.pipeline["musicxml_in"], converter.pipeline["midi_in"], batch_if_possible=False, overwrite=True)
 
 
     # import json

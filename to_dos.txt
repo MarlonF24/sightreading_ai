@@ -18,6 +18,7 @@
 - maybe also split scores at repitition lines or others
 - maybe split pdfs by pages
 - write generic clean_up function that takes extention and removes all nonfitting files
+-think about this: Slide forward by 1 page (i.e., page 1+2, then 2+3, then 3+4...)
 
 
 INFO:
@@ -40,4 +41,6 @@ INFO:
 
     pdf preprocessing splits pdfs into groups of pages,
     tradeoff: larger group -> higher likelihood of containing a text containing page that fails group conversion to musicxml, but also makes it less likely that an exercise that goes across multiple pages is split 
+
+    => all input files must contain only exercises with end bar lines at the end, otherwise they will be merged with the following exercise which corrupts the data
         
