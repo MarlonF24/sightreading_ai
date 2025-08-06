@@ -8,13 +8,13 @@ import miditok
 
 if __name__ == "__main__":
     # metadata_tokens = Metadata.TokenisedMetadata(
-    #    key_signature=0,
+    #    key_signature=5,
     #    time_signature="4/4",
     #    rh_clef="G",
     #    lh_clef="F",
     #    lowest_pitch=30,
     #    highest_pitch=100,
-    #    num_measures=16,
+    #    num_measures=4,
     #    density_complexity=5,
     #    duration_complexity=3,
     #    interval_complexity=4
@@ -27,14 +27,21 @@ if __name__ == "__main__":
 
     # tokeniser = MyTokeniser()
     # tokeniser.train_BPE(data_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/midi_in"))
+    
     # tokeniser.save_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
 
     tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
+    # print([(key, value) for key, value in tokeniser.vocab_model.items() if value == 602])
+    
     pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
     converter = Converter(pipeline=pipeline)
-    converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens_in"], batch_if_possible=False, overwrite=True)
+    converter.multi_stage_conversion(converter.pipeline["tokens_out"], converter.pipeline["midi_out"], batch_if_possible=False, overwrite=True)
 
-    MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
+    # import symusic
+    # score = symusic.factory.Score()
+    # score.dumps_midi()
+    
+    # MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
 
 
     # import json
@@ -47,5 +54,6 @@ if __name__ == "__main__":
     
     # print(f"Average length of tokens: {sum(l) / len(l)}")
     # print(f"Total number of tokens: {sum(l)}")
+
     pass
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 import data_pipeline_scripts.conversion_functions as conversion_functions, constants as constants
+from dataclasses import dataclass
 from typing import *
 from pathlib import Path
 from data_pipeline_scripts.conversion_func_infrastructure import *
 from data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
 from tokeniser.tokeniser import MyTokeniser
 
-
+# @dataclass(unsafe_hash=True)
 class PipelineStage():
     """
     A class representing a stage in a data processing pipeline.
@@ -16,7 +17,7 @@ class PipelineStage():
     - extension (str): The file extension associated with this stage (e.g., ".musicxml", ".midi").
     - children (dict[PipelineStage, _ConversionFunction]): A dictionary mapping child PipelineStage objects to the conversion function required to reach them from the current stage.
     """
-       
+
     def __init__(self, name: str, extension: str, children: dict[PipelineStage, _ConversionFunction] = {}) -> None:
         """
         Initializes a PipelineStage object.
@@ -33,6 +34,7 @@ class PipelineStage():
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name='{self.name}', extension='{self.extension}', children={self.children}')"
+    
     
     def add_child_stage(self, child_stage: PipelineStage, conversion_function: _ConversionFunction) -> None:
         """
@@ -62,7 +64,7 @@ class PipelineStage():
             target_stage (PipelineStage): The child stage for which the conversion function is being set.
             conversion_function (ConversionFunction): The conversion function to be used for transitioning from the current stage to the target stage.
         """
-        self.children[target_stage] = conversion_function
+        self.add_child_stage(target_stage, conversion_function)
      
    
 class Pipeline():

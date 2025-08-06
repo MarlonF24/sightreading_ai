@@ -6,6 +6,7 @@ TOKENS_INPUT_IDS_KEY: str = "input_ids"
 TOKENS_LABELS_KEY: str = "labels"
 TOKENS_TOKENISER_HASH_KEY: str = "tokeniser_hash"
 TOKENS_METADATA_KEY: str = "metadata"
+TOKENS_TOKENS_KEY: str = "tokens"
 
 
 # Constants for tokeniser configuration

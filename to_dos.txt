@@ -17,6 +17,7 @@
 -think about this: Slide forward by 1 page (i.e., page 1+2, then 2+3, then 3+4...)
 - centralise -100 as label padding in constants
 - fix that we can also train with untrained tokeniser
+- find cleaner solution for prefixing bos token before generation
 
 INFO:
     - save_pretrained is like save only with the option to push to hub

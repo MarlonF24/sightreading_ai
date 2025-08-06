@@ -4,6 +4,7 @@ from functools import cached_property, wraps
 from pathlib import Path
 from dataclasses import dataclass
 
+@dataclass()
 class Metadata:
     # weights for complexity measures
     DENSITY_COMPLEXITY_WEIGHT = constants.tokeniser_constants.DENSITY_COMPLEXITY_WEIGHT
@@ -270,8 +271,13 @@ class MyTokeniser(miditok.REMI):
         tok_seq = self.encode(input_file, encode_ids=True, no_preprocess_score=False, attribute_controls_indexes=None)
 
 
-        return {constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids, constants.tokeniser_constants.TOKENS_LABELS_KEY: tok_seq.ids, constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash}
+        return {constants.tokeniser_constants.TOKENS_METADATA_KEY: metadata_seq.tokens,
+                constants.tokeniser_constants.TOKENS_TOKENS_KEY: tok_seq.tokens,
+                constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: metadata_seq.ids + tok_seq.ids,
+                constants.tokeniser_constants.TOKENS_LABELS_KEY: tok_seq.ids,
+                constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash}
 
+    # TODO: rename
     def encode_metadata(self, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> miditok.TokSequence:
         tokenised_metadata = Metadata.TokenisedMetadata.type_to_dict(tokenised_metadata)
         

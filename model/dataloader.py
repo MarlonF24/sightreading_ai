@@ -53,11 +53,17 @@ class MyTokenDataset(Dataset):
             if len(input_ids) < len(labels):
                 raise ValueError(f"Corrupt data. Found Input IDs length ({len(input_ids)}) is less than labels length ({len(labels)}) in file {self.files_paths[idx]}. Before training, ensure that the data is correctly tokenised with a MyTokeniser.")
 
-            labels = [-100] * (len(input_ids) - len(labels)) + data[constants.tokeniser_constants.TOKENS_LABELS_KEY]
+            # Pad the labels so that metadata and bos/eos tokens are not predicted
+            labels = [-100] * (len(input_ids) - len(labels) - 1) + data[constants.tokeniser_constants.TOKENS_LABELS_KEY] + [-100]
 
-            return {
+            res = {
                 constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: LongTensor(input_ids),
                 constants.tokeniser_constants.TOKENS_LABELS_KEY: LongTensor(labels),
             }
+
+
+            # print(f"Processed file: {res}")
+            return res
+            
 
                 

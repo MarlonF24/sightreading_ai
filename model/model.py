@@ -127,7 +127,7 @@ class MyModel(GPT2LMHeadModel):
 
     @classmethod
     def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata):
-        import torch
+        import torch, transformers
         cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         # Load tokeniser and model
@@ -144,11 +144,23 @@ class MyModel(GPT2LMHeadModel):
 
         tok_seq = tokeniser.encode_metadata(metadata_tokens)
 
-        input_ids = torch.tensor([tok_seq.ids], dtype=torch.long).to(device)
+        input_ids = torch.tensor([[tokeniser.vocab[tokeniser.bos_token]] + tok_seq.ids], dtype=torch.long).to(device)
+
+
+        custom_gen_config = model.generation_config
+        custom_gen_config.update(
+            do_sample=True,
+            temperature=0.9,
+            top_k=50,
+            top_p=0.95,
+            repetition_penalty=1.2,
+            max_new_tokens=128
+        )
+
 
         # Generate
         with torch.no_grad():
-            generated = model.generate(input_ids, generation_config=model.generation_config)
+            generated = model.generate(input_ids, generation_config=custom_gen_config)
 
 
         # Decode back to tokens
