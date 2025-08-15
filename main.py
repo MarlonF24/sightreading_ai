@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
 
     MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
-
+ 
 
     # import json
     # l = []
