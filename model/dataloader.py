@@ -6,17 +6,25 @@ from tokeniser.tokeniser import MyTokeniser
 import json, constants as constants
 
 class MyTokenDataset(Dataset):
-    def __init__(self, files_paths: Sequence[Path], tokeniser: MyTokeniser, bos_token_id: int, eos_token_id: int, pad_token_id: int):
-        """
-        Dataset for tokenised files from a MyTokeniser.
+    def __init__(self, files_paths: Sequence[Path], tokeniser: MyTokeniser, max_sequence_length: int, bos_token_id: int, eos_token_id: int, pad_token_id: int, sort_by_length: bool = True):
+        """Dataset for tokenised files from a MyTokeniser.
 
-        :param bos_token_id: Beginning of sequence token ID.
-        :param eos_token_id: End of sequence token ID.
-        :param pad_token_id: Padding token ID.
         :param files_paths: Paths to the JSON files containing tokenised data.
         :type files_paths: Sequence[Path]
-        :param tokeniser_hash: Hash of the tokeniser used for encoding the data.
-        :type tokeniser_hash: str
+        :param tokeniser: Instance of MyTokeniser used for encoding the data.
+        :type tokeniser: MyTokeniser
+        :param max_sequence_length: Maximum sequence length for the input IDs.
+        :type max_sequence_length: int
+        :param bos_token_id: Beginning of sequence token ID.
+        :type bos_token_id: int
+        :param eos_token_id: End of sequence token ID.
+        :type eos_token_id: int
+        :param pad_token_id: Padding token ID.
+        :type pad_token_id: int
+        :param sort_by_length: Whether to sort the dataset by sequence length.
+        :type sort_by_length: bool
+        :raises TypeError: If the tokeniser is not an instance of MyTokeniser.
+        :raises ValueError: If no valid files are found.
         """
         if not isinstance(tokeniser, MyTokeniser):
             raise TypeError(f"Expected tokeniser to be MyTokeniser (thats what this dataloader is designed for), got {type(tokeniser)}")
@@ -28,7 +36,8 @@ class MyTokenDataset(Dataset):
 
         self.files_paths = [
             file for file in files_paths
-            if json.loads(file.read_text())[constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY] == self.tokeniser.hexa_hash
+            if (temp := json.loads(file.read_text()))[constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY] == self.tokeniser.hexa_hash and
+               len(temp[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]) <= max_sequence_length
         ]
 
         if not self.files_paths:
@@ -36,7 +45,17 @@ class MyTokenDataset(Dataset):
                              f"Retokenise the data with your given tokeniser.")
 
 
-        print(f"Filtered dataset size: {len(self.files_paths)} files (from given {len(files_paths)}) with matching tokeniser hash {self.tokeniser.hexa_hash}")
+        print(f"Filtered dataset size: {len(self.files_paths)} files (from given {len(files_paths)}) with matching tokeniser hash {self.tokeniser.hexa_hash} and length <= {max_sequence_length} (see 'max_position_embeddings' specified in model config)")
+
+
+        if sort_by_length:
+            # Sort files by length of input_ids so that when sequences in a batch have minimal length difference and thus minimal padding 
+            self.files_paths.sort(key=lambda file: len(json.loads(file.read_text())[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]))
+
+            print(f"Dataset sorted by sequence length")
+            
+            print(f"Length range: {len(json.loads(self.files_paths[0].read_text())[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY])} to "
+                  f"{len(json.loads(self.files_paths[-1].read_text())[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY])}")
 
     def __len__(self):
         return len(self.files_paths)

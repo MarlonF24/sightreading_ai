@@ -242,7 +242,7 @@ class Pipeline():
         Parameters:
             *args (PipelineStage): Variable length argument list. Each element should be a PipelineStage object.
         """
-        self.stages = self.stages.union(set(*args))
+        self.stages = self.stages.union(set(args))
     
 
     def shortest_conversion_route(self, start_stage: PipelineStage |str, target_stage: PipelineStage | str) -> List[PipelineStage]:
@@ -290,30 +290,32 @@ class Pipeline():
     
 
 def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool, musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_dir: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
-    #pdf_out = PipelineStage("musicxml_out" , ".musicxml", None)
-    #musicxml_out = PipelineStage("musicxml_out" , ".musicxml", midi_in)
-    #midi_out = PipelineStage("midi_out", ".midi", musicxml_out)
+
+    musicxml_out = PipelineStage("musicxml_out", constants.MUSICXML_EXTENSION, {})
     
-    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {})
+    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {musicxml_out: conversion_functions.midi_to_musicxml()})
+    
     tokens_out = PipelineStage("tokens_out", constants.TOKENS_EXTENSION, {midi_out: conversion_functions.tokens_to_midi(tokeniser)})
 
     tokens_in = PipelineStage("tokens_in", constants.TOKENS_EXTENSION, {})
     
     midi_in = PipelineStage("midi_in", constants.MIDI_EXTENSION, {tokens_in: conversion_functions.midi_to_tokens(tokeniser)})
     
-    musicxml_in = PipelineStage("musicxml_in", constants.MUSICXML_EXTENSION, {midi_in: conversion_functions.musicxml_to_midi(tokeniser)})
-    
-    mxl_in = PipelineStage("mxl_in", constants.MXL_EXTENSION, {musicxml_in: conversion_functions.mxl_to_musicxml_unzip()})
-    
+    #musicxml_in = PipelineStage("musicxml_in", constants.MUSICXML_EXTENSION, {midi_in: conversion_functions.mxl_to_midi(tokeniser)})
+
+    mxl_in = PipelineStage("mxl_in", constants.MXL_EXTENSION, {midi_in: conversion_functions.mxl_to_midi(tokeniser)})
+
     if pdf_preprocess:
         pdf_preprocessed = PipelineStage("pdf_preprocessed", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
 
-    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {pdf_preprocessed: conversion_functions.pdf_preprocessing()} if pdf_preprocess else {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
+    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
 
-    pipeline = Pipeline(midi_out, tokens_out, tokens_in, midi_in, musicxml_in, mxl_in, pdf_in)
+    pipeline = Pipeline(musicxml_out, midi_out, tokens_out, tokens_in, midi_in, mxl_in, pdf_in)
 
     if pdf_preprocess:
         pipeline.add_stage(pdf_preprocessed)
+        pipeline["pdf_in"].remove_child_stage(pipeline["mxl_in"])
+        pipeline["pdf_in"].add_child_stage(pdf_preprocessed, conversion_functions.pdf_preprocessing())
     
     return pipeline
 

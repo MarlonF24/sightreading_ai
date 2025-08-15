@@ -18,8 +18,18 @@
 - centralise -100 as label padding in constants
 - fix that we can also train with untrained tokeniser
 - find cleaner solution for prefixing bos token before generation
+- maybe remove unecessary stuff from token files again
+- adapt exercise splitting to other end lines too (like, final-repeat mix line)
+- (generally fix:) put length of "[input:....]" computation of how many lines to clear
+- maybe adapt infrastructure to accept single objects OR list List[object] like for conversionoutcomes for logging
+- find solution for repeat end splitting: maybe plit at end repeats only if next bar has both keysig and timesig or other beginning bar identifiers (good heuristic)
+- keysig_8 error
 
 INFO:
+    - training errors with some assertion src < scr... are likely due to wrong max_positions_embedding in model config, or due to token outside of vocab 
+
+    - rn the musicxml splitting option splits not only at every end bar lines but also at repeat ends
+
     - save_pretrained is like save only with the option to push to hub
     - from_pretrained is like initialising via params, but with option to download from hub
     - params is the full tokeniser file containing config, tokenisations, vocab (if pretrained),...

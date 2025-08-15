@@ -21,7 +21,7 @@ The pipeline is managed by the `Pipeline` and `Converter` classes in `data_pipel
 #### Pipeline Stages:
 - **PDF → MXL**: Uses Audiveris via `pdf_to_mxl` (batch conversion).
 - **MXL → MusicXML**: Via `mxl_to_musicxml_music21` (using music21) or `mxl_to_musicxml_unzip` (unzipping).
-- **MusicXML → MIDI**: Via `musicxml_to_midi` (using music21, also extracts and saves metadata).
+- **MusicXML → MIDI**: Via `mxl_to_midi` (using music21, also extracts and saves metadata).
 - **MIDI → Tokens**: Via `midi_to_tokens` (using miditok, inserts metadata tokens).
 - **Tokens**: Used for model training.
 

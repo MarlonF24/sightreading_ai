@@ -339,7 +339,7 @@ class pdf_to_mxl(BatchConversionFunction):
         """
 
         critical_messages = ["Could not export since transcription did not complete successfully",
-                             "resolution is too low"]
+                             "resolution is too low", "FATAL"]
         
         if stdout:
             for temp in critical_messages:
@@ -359,18 +359,25 @@ class pdf_to_mxl(BatchConversionFunction):
                         error_message=temp
                     )]        
 
+
         output_files = [file for file in output_dir.glob(f"{input_file.stem}*{constants.MXL_EXTENSION}")]
+        
+        if not output_files:
+            return [ConversionOutcome(
+                input_file=input_file,
+                successful=False,
+                error_message=f"No output files found in {output_dir} for {input_file.stem}. Some uncaught error might have occurred. Check audiveris log for details and add any indication of the error to the critical_messages in {self.__class__.__name__} in {self.__class__.__module__}."
+            )]
         
         if returncode == 0:
 
             warnings = [f"{line.strip().split(']')[1]}" for line in stdout.split('\n') if line.strip().startswith("WARN")]
 
-            return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=True, warning_messages=warnings)]
+            return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=True, 
+            warning_messages=warnings)]
         
-        if "FATAL" in stderr:
-            return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=False, error_message=stderr)]
-        
-        return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=False, error_message=stderr)]
+        return [ConversionOutcome(input_file=input_file, output_files=output_files, successful=False, 
+        error_message=stderr)]
     
     def batch_interpreter(self, returncode: int, stderr: str, stdout: str, input_dir: DirPath, output_dir: DirPath) -> List[ConversionOutcome]:
         """
@@ -476,7 +483,7 @@ class mxl_to_musicxml_unzip(SingleFileConversionFunction):
 
         for file in output_dir.iterdir():
                 if file.suffix != '.musicxml':
-                    file.unlink() if file.is_file() else shutil.rmtree(output_dir)
+                    file.unlink() if file.is_file() else shutil.rmtree(file)
     
     def conversion(self, input_file, output_dir):    
         import zipfile, os
@@ -508,7 +515,7 @@ class mxl_to_musicxml_unzip(SingleFileConversionFunction):
                 successful=True)]
 
 
-class musicxml_to_midi(SingleFileConversionFunction):
+class mxl_to_midi(SingleFileConversionFunction):
     """
     This class is responsible for converting a MusicXML file to a MIDI file using the music21 library.
     It also extracts metadata from the parsed music score and saves it to a JSON file in a separate dir.
@@ -517,7 +524,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
     """
 
     def __init__(self, tokeniser: MyTokeniser, split: bool = True, transpose: bool = True):
-        """Initialise a new instance of the musicxml_to_midi class.
+        """Initialise a new instance of the mxl_to_midi class.
 
         :param tokeniser: An instance of MyTokeniser used for tokenising MIDI files later. So that we can skip files that do not match the tokeniser vocab by their metadata.
         :type tokeniser: MyTokeniser
@@ -560,11 +567,7 @@ class musicxml_to_midi(SingleFileConversionFunction):
         if not isinstance(score, music21.stream.Score):
             raise ValueError("Input file is not a valid MusicXML file.")
         
-        metadata = Metadata(score)
-
-        if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
-            raise ValueError(t[0].error_message)
-
+        # metadata = Metadata(score)
 
         # Split hand into different instrument programs to separate them for tokenisation later
         lh = score.parts[1]
@@ -574,52 +577,55 @@ class musicxml_to_midi(SingleFileConversionFunction):
         piano_lh = music21.instrument.ElectricPiano()
         lh.insert(0, piano_lh)
 
-        scores = [score]
+        score_stack = [score]
         
+
+        # note that this also splits at every end-repeat line
         if self.split:
             measures = score.parts[0].getElementsByClass(music21.stream.Measure)
             splits = [1]  
             
             for i, measure in enumerate(measures, start=1):
-                if measure.finalBarline:
-                    splits.append(i)
-
+                
+                if t := measure.finalBarline:
+                    if t.__class__ == music21.bar.Barline:
+                        splits.append(i)
+            
             if len(splits) == 1:
                 warnings.warn("Input file does not contain any bar end lines. Either this is an exercise fragment or it is not properly formatted.")
 
             if not len(measures) in splits:
                 splits.append(len(measures))
 
-            scores = [score.measures(splits[i], splits[i + 1]) for i in range(len(splits) - 1)]
+            score_stack = [score.measures(splits[i], splits[i + 1]) for i in range(len(splits) - 1)]
             print(f"Splitting completed.", end="\r")
 
-        if self.transpose:
-            # If transposing, create a new score for each possible transposition
-            transposed_scores = []
-            for score in scores:
-                transposed_scores.extend(
-                    [score.transpose(i) for i in range(-7, 8) if i != 0]
-                )
-            scores.extend(transposed_scores)
-            print(f"Transposing completed.", end="\r")
-
-
+        i = 0
+        initial_length = len(score_stack)
         output_files: List[FilePath] = []
         error_counter = 0
         _warnings = []
 
 
-        for i, score in enumerate(scores, start=1):
+        while score_stack:
             try:
-                # check if the score metadata fits the tokeniser vocab
-                
+                i += 1
+                score = score_stack.pop(0)
                 metadata = Metadata(score)
-
+                
                 if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
                     raise ValueError(t[0].error_message)
-                
 
-                if len(scores) > 1:
+                if i <= initial_length and self.transpose:
+                    # If transposing, create a new score for each possible transposition
+                    transposed_scores = []
+                    transposed_scores.extend(
+                        [score.transpose(j) for j in range(-5, 7) if j != 0]
+                    )
+
+                    score_stack.extend(transposed_scores)
+
+                if initial_length > 1:
                     _output_file = output_dir / (input_file.stem + f"_{i}{constants.MIDI_EXTENSION}")
                 else:
                     _output_file = output_dir / (input_file.stem + constants.MIDI_EXTENSION)
@@ -639,8 +645,8 @@ class musicxml_to_midi(SingleFileConversionFunction):
                 warnings.warn(_warnings[-1])
                 error_counter += 1
 
-            if error_counter == len(scores):
-                raise ValueError(f"All {len(scores)} exercises failed processing: {_warnings}")
+        if error_counter == i:
+            raise ValueError(f"All {i} exercises failed processing: {_warnings}")
 
         return output_files
 
@@ -660,10 +666,17 @@ class midi_to_tokens(SingleFileConversionFunction):
         self.tokeniser = tokeniser
 
     def skip_single_file(self, input_file, output_dir):
-        return Generics.same_name_skip(input_file, output_dir)
+        import json
+        
+        if temp := Generics.same_name_skip(input_file, output_dir):
+            with temp[0].output_files[0].open() as f:
+                tokens = json.load(f)
+
+            if tokens[constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY] == self.tokeniser.hexa_hash:
+                return temp
 
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:    
-        import json
+        import json, shutil
 
         with input_file.parent.joinpath(constants.data_pipeline_constants.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
             metadata = json.load(f)
@@ -683,7 +696,18 @@ class midi_to_tokens(SingleFileConversionFunction):
             )]
         
         else:
-            Generics.clear_n_terminal_lines(3)
+            # Get terminal width (fallback to 80 if not available)
+            try:
+                terminal_width = shutil.get_terminal_size().columns
+            except (AttributeError, OSError):
+                terminal_width = 80
+            
+            # Calculate how many lines the filename will take
+            lines_needed = (len(input_file.name) + len("") + terminal_width - 1) // terminal_width  # Ceiling division
+            
+            # Clear the calculated number of lines
+            Generics.clear_n_terminal_lines(lines_needed)
+            
             
             output_path = output_dir.joinpath(input_file.stem + constants.TOKENS_EXTENSION)
             
@@ -701,6 +725,7 @@ class midi_to_tokens(SingleFileConversionFunction):
 
 
 class tokens_to_midi(SingleFileConversionFunction):
+    import music21, symusic
     
     def __init__(self, tokeniser: MyTokeniser):
         """
@@ -716,6 +741,47 @@ class tokens_to_midi(SingleFileConversionFunction):
     
     def clean_up(self, input_file, output_dir):
         pass
+
+    # depricated
+    @staticmethod
+    def symusic_to_music21(score_tick: symusic.core.ScoreTick = None) -> music21.stream.Score:
+        import music21
+        m21_score = music21.stream.Score()
+        rh_part = music21.stream.Part()
+        lh_part = music21.stream.Part()
+        
+        tokens_to_midi.symusic.core.TrackTick
+
+        for track in score_tick.tracks:
+            print(track)
+            if not isinstance(track, tokens_to_midi.symusic.core.TrackTick):
+                raise TypeError(f"Expected symusic.core.TrackTick, got {type(track)}")
+            # remember, we set rh to program 0 and lh to program 2
+            if track.program == 0:
+                part = rh_part
+            else:
+                part = lh_part
+
+            for tick in track.notes:
+                if not isinstance(tick, tokens_to_midi.symusic.core.NoteTick):
+                    raise TypeError(f"Expected symusic.core.NoteTick, got {type(tick)}")
+
+                note = music21.note.Note(tick.pitch, quarterLength=tick.duration)
+
+        
+
+        for event in score_tick:
+            if event.is_chord:
+                c = music21.chord.Chord(event.pitches, quarterLength=event.duration)
+                part.append(c)
+            else:
+                n = music21.note.Note(event.pitch, quarterLength=event.duration)
+                part.append(n)
+
+        m21_score.insert(0, rh_part)
+        m21_score.insert(1, lh_part)
+        return m21_score
+
 
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
         import json, miditok, symusic
@@ -747,14 +813,39 @@ class tokens_to_midi(SingleFileConversionFunction):
                 raise ValueError("The token sequence does not contain a Bar_0 token. This is required for the conversion to MIDI.")
 
             
-            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[10:])
+            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[11:])
             #clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[tok_seq.tokens.index("Bar_0"):])
-            
+
             output_path = output_dir / (input_file.stem + ".midi")
-            score = self.tokeniser.decode(clean_seq, output_path=output_path)
+            output_path = output_dir / ("out.midi")
+
+            if output_path.exists():
+                output_path.unlink()
+
+            score = self.tokeniser.decode(clean_seq)
+
+            score.tracks[0], score.tracks[1] = score.tracks[1], score.tracks[0]  # swap hands, so that the right hand is first
             
+            # set both hands to piano program as we split them onto different programs before
+            for track in score.tracks:
+                track.program = 0 
+                # track.name = "Piano"
+
+            if not isinstance(score, symusic.core.ScoreTick):
+                raise ValueError("The decoded score is not a valid symusic Score object.")
+            
+            score.dump_midi(output_path.as_posix())
+            # score = tokens_to_midi.symusic_to_music21(score)
+
+            # if not isinstance(score, tokens_to_midi.music21.stream.Score):
+            #     raise ValueError("The converted score is not a valid music21 Score object.")
+
+            # score.write('midi', fp=output_path)
+             
+            # score.dump_midi(str(output_path))
+
             pass
-            # miditok.write("midi", fp=output_path)
+    
 
         except Exception as e:
             return [ConversionOutcome(
@@ -772,6 +863,31 @@ class tokens_to_midi(SingleFileConversionFunction):
             )]
 
 
+class midi_to_musicxml(SingleFileConversionFunction):
+    """
+    This class is responsible for converting a MIDI file to a MusicXML file using the music21 library.
+    
+    Inherits from SingleFileConversionFunction.
+    """
+    
+    def skip_single_file(self, input_file, output_dir):
+        return Generics.same_name_skip(input_file, output_dir)
+
+    def clean_up(self, input_file, output_dir):
+        pass
+
+    
+    def music21_func(self, input_file: FilePath, output_dir: DirPath) -> List[FilePath]:
+        import music21
+        score = music21.converter.parse(input_file)
+        output_path = output_dir / (input_file.stem + constants.MUSICXML_EXTENSION)
+        score.write('musicxml', fp=output_path)
+        return [output_path]
+
+    def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
+        return Generics.generic_music21_conversion(input_file, output_dir, self.music21_func)
+        
+        
 
 if __name__ == "__main__":
     pass

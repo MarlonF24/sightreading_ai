@@ -13,13 +13,14 @@ class MyModel(GPT2LMHeadModel):
     OUTPUT_DIR = OWN_DIR / constants.model_constants.OUTPUT_DIR_NAME
 
     @staticmethod
-    def build_config(tokeniser: MyTokeniser = MyTokeniser()) -> GPT2Config:
+    def build_config(max_sequence_length: int, tokeniser: MyTokeniser = MyTokeniser()) -> GPT2Config:
         config = constants.model_constants.MYMODEL_BASE_CONFIG.copy()
         config[constants.model_constants.TOKENISER_HASH_FIELD] = tokeniser.hexa_hash
         config[constants.model_constants.VOCAB_SIZE_FIELD] = len(tokeniser.vocab_model) if tokeniser.is_trained else len(tokeniser.vocab)
         config[constants.model_constants.BOS_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.bos_token]
         config[constants.model_constants.EOS_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.eos_token]
         config[constants.model_constants.PAD_TOKEN_ID_FIELD] = tokeniser.vocab[tokeniser.pad_token]
+        config[constants.model_constants.MAX_POSITION_EMBEDDINGS_FIELD] = max_sequence_length
 
         return GPT2Config(**config)
 
@@ -31,7 +32,7 @@ class MyModel(GPT2LMHeadModel):
     
 
     @classmethod
-    def load_or_create(cls, tokeniser: MyTokeniser) -> Tuple["MyModel", bool]:
+    def load_or_create(cls, tokeniser: MyTokeniser, tokens_dir: Path) -> Tuple["MyModel", bool]:
         import shutil, miditok.constants, transformers.utils
 
         files_present = [cls.TRAINING_DIR.joinpath(transformers.utils.CONFIG_NAME).exists(),
@@ -76,18 +77,93 @@ class MyModel(GPT2LMHeadModel):
             print("Initialising new model with given tokeniser.")
             shutil.rmtree(cls.TRAINING_DIR, ignore_errors=True)
             cls.TRAINING_DIR.mkdir(parents=True, exist_ok=False)
-            return cls(cls.build_config(tokeniser)), False
+            max_sequence_length = cls.analyse_sequence_lengths_for_cutoff(tokens_dir, constants.model_constants.SEQUENCE_LENGTH_CUTOFF_PERCENTILE)
+            return cls(cls.build_config(max_sequence_length + 2, tokeniser)), False  # +2 for BOS/EOS tokens
+
+    @staticmethod
+    def analyse_sequence_lengths_for_cutoff(tokens_dir: Path, target_percentile: float) -> int:
+        """
+        Analyzes the sequence lengths in JSON files within a directory and determines the maximum sequence length
+        to keep a specified percentile of files.
+        Args:
+            tokens_dir (Path): Directory containing JSON files, each with an "input_ids" key.
+            target_percentile (float): The percentile (between 0 and 1) of files to keep based on sequence length.
+        Returns:
+            int: The maximum sequence length at the specified percentile cutoff.
+        Raises:
+            ValueError: If target_percentile is not between 0 and 1.
+        Side Effects:
+            Prints an analysis of sequence length cutoffs for several percentiles, highlighting the selected cutoff.
+        """
+        
+        
+        import json
+        
+        if target_percentile < 0 or target_percentile > 1:
+            raise ValueError("target_percentile must be between 0 and 1.")
+
+        lengths = []
+        for file in tokens_dir.glob("*.json"):
+            with open(file, "r") as f:
+                data = json.load(f)
+            lengths.append(len(data["input_ids"])) 
+        
+        lengths.sort()
+        total_files = len(lengths)
+        
+        # Show analysis for multiple cutoffs
+        cutoffs = [0.90, 0.95, 0.98, 0.99, 0.995]
+        
+        print("Cutoff analysis:")
+        for cutoff in cutoffs:
+            idx = int(total_files * cutoff)
+            kept_files = idx
+            discarded_files = total_files - kept_files
+            max_length_at_cutoff = lengths[idx - 1] if idx > 0 else 0
+            
+            # Highlight the target percentile
+            marker = " ← SELECTED" if cutoff == target_percentile else ""
+            
+            print(f"  {cutoff*100:4.1f}%: max_length={max_length_at_cutoff:4d}, "
+                f"keep {kept_files:4d} files, discard {discarded_files:2d} files{marker}")
+    
+        # Calculate the selected max_length
+        target_idx = int(total_files * target_percentile)
+        selected_max_length = lengths[target_idx - 1] if target_idx > 0 else max(lengths)
+        
+        print(f"\nSelected {target_percentile*100}% cutoff:")
+        print(f"  Max sequence length: {selected_max_length}")
+        print(f"  Files kept: {target_idx}/{total_files}")
+        print(f"  Files discarded: {total_files - target_idx}")
+        
+        return selected_max_length
+
 
     @classmethod
     def train_from_tokens_dir(cls, tokens_dir: Path, tokeniser: MyTokeniser):
-        from transformers import Trainer, TrainingArguments, trainer_utils
+        import torch
+        from transformers import Trainer, TrainingArguments
+        
         cls.TRAINING_DIR.mkdir(parents=True, exist_ok=True)
 
 
-        model, loaded = cls.load_or_create(tokeniser)
+        model, loaded = cls.load_or_create(tokeniser, tokens_dir=tokens_dir)
+
+       
+        # MOVE MODEL TO GPU
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+            model = model.to(device)
+            print(f"✅ Model moved to: {device}")
+        else:
+            device = torch.device("cpu")
+            print("⚠️ Using CPU (CUDA not available)")
+
+
         dataset = MyTokenDataset(
             files_paths=list(tokens_dir.glob(f"*{constants.TOKENS_EXTENSION}")),
             tokeniser=tokeniser,
+            max_sequence_length=model.config.attribute_map[constants.model_constants.MAX_POSITION_EMBEDDINGS_FIELD],
             bos_token_id=tokeniser.vocab[tokeniser.bos_token],
             eos_token_id=tokeniser.vocab[tokeniser.eos_token],
             pad_token_id=tokeniser.vocab[tokeniser.pad_token]
@@ -120,15 +196,16 @@ class MyModel(GPT2LMHeadModel):
             data_collator=collator,
         )
 
+
         trainer.train()
         trainer.model.save_pretrained(cls.TRAINING_DIR)
         if not loaded:
             tokeniser.save_pretrained(cls.TRAINING_DIR)
 
     @classmethod
-    def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata):
+    def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata, output_dir: Path):
         import torch, transformers
-        cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # Load tokeniser and model
         tokeniser = MyTokeniser.from_pretrained(cls.TRAINING_DIR)
@@ -166,7 +243,7 @@ class MyModel(GPT2LMHeadModel):
         # Decode back to tokens
         output_ids = generated[0].tolist()
 
-        tokeniser.save_generated_tokens(cls.OUTPUT_DIR / f"generated{constants.TOKENS_EXTENSION}", output_ids, metadata_tokens)
+        tokeniser.save_generated_tokens(output_dir / f"generated{constants.TOKENS_EXTENSION}", output_ids, metadata_tokens)
 
 if __name__ == "__main__":
     tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 

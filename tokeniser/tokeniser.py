@@ -4,25 +4,21 @@ from functools import cached_property, wraps
 from pathlib import Path
 from dataclasses import dataclass
 
-@dataclass()
+@dataclass(frozen=True)
 class Metadata:
     # weights for complexity measures
     DENSITY_COMPLEXITY_WEIGHT = constants.tokeniser_constants.DENSITY_COMPLEXITY_WEIGHT
     DURATION_COMPLEXITY_WEIGHT = constants.tokeniser_constants.DURATION_COMPLEXITY_WEIGHT
     INTERVAL_COMPLEXITY_WEIGHT = constants.tokeniser_constants.INTERVAL_COMPLEXITY_WEIGHT
 
-    def __init__(self, score: music21.stream.base.Score):
-        self._score: music21.stream.base.Score = score
-        if len(self._score.parts) != 2:
+    score: music21.stream.base.Score 
+
+    def __post_init__(self):
+        if len(self.score.parts) != 2:
             raise ValueError("Expected two staves (RH and LH), got something else.")
-
-    @property
-    def score(self) -> music21.stream.base.Score:
-        return self._score
-
-    @score.setter
-    def score(self, score: music21.stream.base.Score):
-        raise PermissionError("Score cannot be modified after initialization.")
+        self.key_signatures
+        self.time_signatures
+        self.num_measures
 
     @cached_property
     def rh_part(self) -> music21.stream.base.Part:
@@ -40,16 +36,28 @@ class Metadata:
     @cached_property
     def key_signatures(self) -> List[int]:
         signatures = self.rh_part.recurse().getElementsByClass(music21.key.KeySignature)
-        return [signature.sharps for signature in signatures] if signatures else [0]  # 0 = C Major/A minor
-    
+        res = [signature.sharps for signature in signatures] 
+        if not res:
+            raise ValueError("No key signatures found in the score.")
+        return res
+
     @cached_property
     def time_signatures(self) -> List[str]:
         signatures = self.rh_part.recurse().getElementsByClass(music21.meter.TimeSignature)
-        return [signature.ratioString for signature in signatures] if signatures else ['4/4']
-    
+        res = [signature.ratioString for signature in signatures]
+        if not res:
+            raise ValueError("No time signatures found in the score.")
+        return res 
+        
+
     @cached_property
     def num_measures(self) -> int:
-        return len(self.rh_part.getElementsByClass(music21.stream.Measure))
+        try:
+            score = music21.repeat.Expander(self.rh_part).process()
+        except Exception as e:
+            score = self.score
+        
+        return len(score.getElementsByClass(music21.stream.Measure))
     
     @cached_property
     def rh_clefs(self) -> List[str]:
@@ -354,7 +362,7 @@ class MyTokeniser(miditok.REMI):
         tokenised_data = Metadata.TokenisedMetadata.type_to_dict(tokenised_data)
         
         if (t := tokenised_data[constants.tokeniser_constants.NUM_MEASURES_FIELD]) not in self.vocab:
-            res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.tokeniserMAX_BARS_FIELD]} Bars\n"
+            res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.tokeniser_constants.MAX_BARS_FIELD]} Bars\n"
 
         if (t := tokenised_data[constants.tokeniser_constants.TIME_SIGNATURE_FIELD]) not in self.vocab:
             res += f"Invalid time signature: {t} not in {self.config.time_signature_range} Time Signatures\n"
