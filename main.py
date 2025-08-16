@@ -4,7 +4,6 @@ from tokeniser.tokeniser import MyTokeniser, MyTokeniserConfig, Metadata
 from model.model import MyModel
 from model.dataloader import MyTokenDataset
 from pathlib import Path
-import miditok
 
 if __name__ == "__main__":
     # metadata_tokens = Metadata.TokenisedMetadata(
@@ -15,9 +14,9 @@ if __name__ == "__main__":
     #    lowest_pitch=30,
     #    highest_pitch=100,
     #    num_measures=10,
-    #    density_complexity=1,
-    #    duration_complexity=1,
-    #    interval_complexity=1
+    #    density_complexity=4,
+    #    duration_complexity=4,
+    #    interval_complexity=4
     # )
 
     # MyModel.generate_tokens(
@@ -31,17 +30,19 @@ if __name__ == "__main__":
 
     
     # tokeniser.save_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
-    # import torch
-
+    
 
     tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
 
-    # pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
-    # converter = Converter(pipeline=pipeline)
-    # converter.multi_stage_conversion(converter.pipeline["midi_in"], converter.pipeline["tokens_in"], batch_if_possible=False, overwrite=True) 
+    pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
+    converter = Converter(pipeline=pipeline)
 
+    # converter.move_stage_data_to_temp(converter.pipeline["mxl_in"])
 
-    MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
+    converter.multi_stage_conversion(converter.pipeline["pdf_in"], converter.pipeline["mxl_in"], batch_if_possible=False, overwrite=True)
+
+    
+    # MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
  
 
     # import json

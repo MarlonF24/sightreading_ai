@@ -37,7 +37,7 @@ class MyTokenDataset(Dataset):
         self.files_paths = [
             file for file in files_paths
             if (temp := json.loads(file.read_text()))[constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY] == self.tokeniser.hexa_hash and
-               len(temp[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]) <= max_sequence_length
+               len(temp[constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY]) <= max_sequence_length - 2 # Account for BOS and EOS tokens
         ]
 
         if not self.files_paths:

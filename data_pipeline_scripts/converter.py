@@ -39,13 +39,14 @@ class Converter():
         self.pipeline_dir_path: DirPath = pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_PIPELINE_DIR_NAME
         self.logs_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_LOGS_DIR_NAME
         self.data_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_DATA_DIR_DEFAULT_NAME
-        self.logs_dir_path.mkdir(parents=True, exist_ok=True)
-        self.data_dir_path.mkdir(parents=True, exist_ok=True)
+        self.temp_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_TEMP_DIR_NAME
 
         self.pipeline = pipeline
         self.assign_data_dirs()  
         self.assign_log_dirs()
+        self.assign_temp_dirs()
 
+    
 
     def assign_log_dirs(self) -> None:
         """
@@ -55,10 +56,11 @@ class Converter():
         Each conversion route is represented by a tuple of two PipelineStage instances, and the corresponding log dir
         is stored in the log_dir_map dictionary.
         """
+        self.logs_dir_path.mkdir(parents=True, exist_ok=True)
         self.log_dir_map: dict[Tuple[PipelineStage, PipelineStage], DirPath] = {}
         for stage in self.pipeline:
             for child in stage.children:
-                path = self.logs_dir_path.joinpath(f"{stage.name}_to_{child.name}")
+                path = self.logs_dir_path / f"{stage.name}_to_{child.name}"
                 self.log_dir_map[(stage, child)] = path
                 path.mkdir(exist_ok=True)
 
@@ -71,12 +73,62 @@ class Converter():
         Each stage is represented by a PipelineStage instance, and the corresponding data dir
         is stored in the data_dir_map dictionary.
         """
+        self.data_dir_path.mkdir(parents=True, exist_ok=True)
         self.data_dir_map: dict[PipelineStage, DirPath] = {}
         for stage in self.pipeline:
-            path = self.data_dir_path.joinpath(stage.name)
+            path = self.data_dir_path / stage.name
             self.data_dir_map[stage] = path
             path.mkdir(exist_ok=True)
 
+
+    def assign_temp_dirs(self) -> None:
+        """
+        Assigns and creates the temp dirs for each stage in the pipeline.
+
+        The temp dirs are created within the temp_dir_path, and their names are based on the stage names.
+        Each stage is represented by a PipelineStage instance, and the corresponding temp dir
+        is stored in the temp_dir_map dictionary.
+        """
+        self.temp_dir_path.mkdir(parents=True, exist_ok=True)
+        self.temp_dir_map: dict[PipelineStage, DirPath] = {}
+        for stage in self.pipeline:
+            path = self.temp_dir_path / stage.name
+            self.temp_dir_map[stage] = path
+            path.mkdir(exist_ok=True)
+    
+    
+    @staticmethod
+    def move_file(src: FilePath, dest: DirPath) -> None:
+        """
+        Moves a file from the source path to the destination path.
+
+        If the destination path exists, it will be removed before the move.
+        """
+        import shutil
+
+        if src.is_dir():
+            if not (temp := dest / src.name).exists():
+                src.rename(dest)
+            
+            else:
+                for item in src.glob("*"):
+                    Converter.move_file(item, dest / src.name)
+                src.rmdir()
+        else:
+            if (temp := dest / src.name).exists():
+                temp.unlink()
+            
+            src.rename(temp)
+
+    def move_stage_data_to_temp(self, *stages: str | PipelineStage):
+        for s in self.pipeline.to_stage(*stages):
+            for file in self.data_dir_map[s].glob("*"):
+                Converter.move_file(file, self.temp_dir_map[s])
+
+    def load_stage_data_from_temp(self, *stages: str | PipelineStage):
+        for s in self.pipeline.to_stage(stages):
+            for file in self.temp_dir_map[s].glob("*"):
+                Converter.move_file(file, self.data_dir_map[s])
 
     def batch_get_license(self, func: BatchConversionFunction) -> bool:
         """
@@ -96,7 +148,7 @@ class Converter():
         return do_conversion.lower() == "y"
             
 
-    def multi_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None:
+    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None:
         """
         Performs a multi-stage conversion from the start stage to the target stage.
 
@@ -110,7 +162,10 @@ class Converter():
         It then prints a message indicating the conversion process and iterates through each stage in the route.
         For each stage, it calls the single_stage_conversion method to perform the conversion.
         """
-        
+
+        start_stage = self.pipeline.to_stage(start_stage)[0]
+        target_stage = self.pipeline.to_stage(target_stage)[0]
+
         route = self.pipeline.shortest_conversion_route(start_stage, target_stage)
          
         print(f"\nConverting from {start_stage.name} to {target_stage.name} via {[stage.name for stage in route]}...\n")
@@ -120,9 +175,9 @@ class Converter():
         for current_target_stage in route[1:]:
             self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible)
             current_start_stage = current_target_stage
-        
-            
-    def single_stage_conversion(self, start_stage: PipelineStage, target_stage: PipelineStage, overwrite: bool=True, batch_if_possible: bool = True) -> None: 
+
+
+    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool=True, batch_if_possible: bool = True) -> None: 
         """
         Performs a single-stage conversion from the start stage to the target stage.
 
@@ -135,6 +190,9 @@ class Converter():
         Raises:
             ValueError: If the conversion from the start stage to the target stage is not possible.
         """
+        start_stage = self.pipeline.to_stage(start_stage)[0]
+        target_stage = self.pipeline.to_stage(target_stage)[0]
+
         if target_stage not in start_stage.children:
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
         

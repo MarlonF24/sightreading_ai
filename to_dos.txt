@@ -11,19 +11,23 @@
 - save tokenseqs that a model was trained on in database and filter out at dataset creation
 - maybe make loading of MyModel and MyTokeniser bulletproof
 - do what audiveris says on its website to enhance transcription quality
-- for generate classmethod catch non existent saved model 
 - use data augmentation from miditok !!! transpose to every key and get *15 data scale
 - write generic clean_up function that takes extention and removes all nonfitting files
 -think about this: Slide forward by 1 page (i.e., page 1+2, then 2+3, then 3+4...)
 - centralise -100 as label padding in constants
-- fix that we can also train with untrained tokeniser
-- find cleaner solution for prefixing bos token before generation
 - maybe remove unecessary stuff from token files again
-- adapt exercise splitting to other end lines too (like, final-repeat mix line)
 - (generally fix:) put length of "[input:....]" computation of how many lines to clear
 - maybe adapt infrastructure to accept single objects OR list List[object] like for conversionoutcomes for logging
 - find solution for repeat end splitting: maybe plit at end repeats only if next bar has both keysig and timesig or other beginning bar identifiers (good heuristic)
-- keysig_8 error
+- think about removing programs from tokens
+- make sure that output musicxml gets additionally transposed to actual key (so test before and then react)
+- force generation to output certain bar length if possible (difficult with BPE ) 
+- think about ways for minor/major classifier
+- switch to music21s analyzeStram for metadata
+- !!! could be solution: maybe give metadatatokens distinct tokens (dont risk them being taken by BPE)
+- from key sigs switch to music21.key.key for acutal major/minor/mode
+- statistical evaluation of properties that determine the complexities to find an appropriate weight (or weight function)
+-make that converter also takes str as stage 
 
 INFO:
     - training errors with some assertion src < scr... are likely due to wrong max_positions_embedding in model config, or due to token outside of vocab 

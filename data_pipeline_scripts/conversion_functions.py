@@ -570,6 +570,7 @@ class mxl_to_midi(SingleFileConversionFunction):
         # metadata = Metadata(score)
 
         # Split hand into different instrument programs to separate them for tokenisation later
+        
         lh = score.parts[1]
 
         lh.removeByClass(music21.instrument.Instrument)
@@ -611,17 +612,39 @@ class mxl_to_midi(SingleFileConversionFunction):
             try:
                 i += 1
                 score = score_stack.pop(0)
+
+                # key = list(score.recurse().getElementsByClass(music21.key.Key))
+                
                 metadata = Metadata(score)
                 
                 if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
                     raise ValueError(t[0].error_message)
 
+                music21.key.KeySignature
+
                 if i <= initial_length and self.transpose:
                     # If transposing, create a new score for each possible transposition
                     transposed_scores = []
-                    transposed_scores.extend(
-                        [score.transpose(j) for j in range(-5, 7) if j != 0]
-                    )
+                    for j in range(-6, 6):
+                        if j != 0:
+                            new_score = score.transpose(j)
+                            # Check if the key signature is outside the acceptable range
+                            if abs((temp := Metadata(new_score).key_signatures[0]).sharps) > 7:
+                                # This uses functionality from music21.key.KeySignature.transpose(), which for some reason doesnt get the enharmonic when an int is passed in, which we cant controll when transposing the whole score.
+                                # This manual transpose only of the key sig could corrupt the score where pitches are still saves as if in the old key sig:
+                                # Lets say that we change G# to Ab and then there will still be G# notes, as the score is written into midi pitches right after this, this should be fine though
+                                k1 = temp.asKey('major')
+                                p1 = k1.tonic
+                                p1 = p1.getEnharmonic()
+
+                                temp.sharps = music21.key.pitchToSharps(p1)
+                                temp.clearCache()
+                            
+                            transposed_scores.append(new_score)
+
+                    # transposed_scores.extend(
+                    #     [score.transpose(j) for j in range(-6, 6) if j != 0]
+                    # )
 
                     score_stack.extend(transposed_scores)
 
@@ -808,42 +831,32 @@ class tokens_to_midi(SingleFileConversionFunction):
                 self.tokeniser.decode_token_ids(tok_seq)
 
             self.tokeniser.complete_sequence(tok_seq)
-
-            if "Bar_0" not in tok_seq.tokens:
-                raise ValueError("The token sequence does not contain a Bar_0 token. This is required for the conversion to MIDI.")
-
             
+            if "Bar_None" not in tok_seq.tokens:
+                raise ValueError("The token sequence does not contain a Bar_None token. This is required for the conversion to MIDI.")
+            print(tok_seq.tokens)
+
             clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[11:])
             #clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[tok_seq.tokens.index("Bar_0"):])
 
             output_path = output_dir / (input_file.stem + ".midi")
-            output_path = output_dir / ("out.midi")
 
             if output_path.exists():
                 output_path.unlink()
 
             score = self.tokeniser.decode(clean_seq)
-
-            score.tracks[0], score.tracks[1] = score.tracks[1], score.tracks[0]  # swap hands, so that the right hand is first
+            
+            # score.tracks[0], score.tracks[1] = score.tracks[1], score.tracks[0]  # swap hands, so that the right hand is first
             
             # set both hands to piano program as we split them onto different programs before
             for track in score.tracks:
                 track.program = 0 
-                # track.name = "Piano"
+                track.name = "Piano"
 
             if not isinstance(score, symusic.core.ScoreTick):
                 raise ValueError("The decoded score is not a valid symusic Score object.")
             
             score.dump_midi(output_path.as_posix())
-            # score = tokens_to_midi.symusic_to_music21(score)
-
-            # if not isinstance(score, tokens_to_midi.music21.stream.Score):
-            #     raise ValueError("The converted score is not a valid music21 Score object.")
-
-            # score.write('midi', fp=output_path)
-             
-            # score.dump_midi(str(output_path))
-
             pass
     
 

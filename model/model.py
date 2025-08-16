@@ -163,7 +163,7 @@ class MyModel(GPT2LMHeadModel):
         dataset = MyTokenDataset(
             files_paths=list(tokens_dir.glob(f"*{constants.TOKENS_EXTENSION}")),
             tokeniser=tokeniser,
-            max_sequence_length=model.config.n_positions - 2, # Account for BOS and EOS tokens
+            max_sequence_length=model.config.n_positions, 
             bos_token_id=tokeniser.vocab[tokeniser.bos_token],
             eos_token_id=tokeniser.vocab[tokeniser.eos_token],
             pad_token_id=tokeniser.vocab[tokeniser.pad_token]

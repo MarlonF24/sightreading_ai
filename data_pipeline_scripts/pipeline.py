@@ -169,7 +169,7 @@ class Pipeline():
         return f"{type(self).__name__}(stages={stages_representation})"
     
 
-    def to_stage(self, *stages: str | PipelineStage) -> tuple[PipelineStage, ...]:
+    def to_stage(self, *stages: str | PipelineStage) -> tuple[PipelineStage, ...] | PipelineStage:
             """
             Converts a variable number of stage names or PipelineStage objects into a tuple of PipelineStage objects.
         

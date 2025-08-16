@@ -34,12 +34,12 @@ class Metadata:
         return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
     @cached_property
-    def key_signatures(self) -> List[int]:
-        signatures = self.rh_part.recurse().getElementsByClass(music21.key.KeySignature)
-        res = [signature.sharps for signature in signatures] 
-        if not res:
+    def key_signatures(self) -> List[music21.key.KeySignature]:
+        signatures = list(self.rh_part.recurse().getElementsByClass(music21.key.KeySignature))
+         
+        if not signatures:
             raise ValueError("No key signatures found in the score.")
-        return res
+        return signatures
 
     @cached_property
     def time_signatures(self) -> List[str]:
@@ -148,7 +148,7 @@ class Metadata:
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
-            "key_signature": self.key_signatures[0],
+            "key_signature": self.key_signatures[0].sharps,
             "time_signature": self.time_signatures[0],
             "clefs": {"RH": self.rh_clefs[0], "LH": self.lh_clefs[0]},
             "pitch_range": self.pitch_range,
@@ -165,7 +165,7 @@ class Metadata:
         This is useful for encoding the metadata into a format suitable for the tokeniser.
         """
         return self.TokenisedMetadata(
-            key_signature=self.key_signatures[0],
+            key_signature=self.key_signatures[0].sharps,
             time_signature=self.time_signatures[0],
             rh_clef=self.rh_clefs[0],
             lh_clef=self.lh_clefs[0],
@@ -198,7 +198,7 @@ class Metadata:
                 constants.tokeniser_constants.LH_CLEF_FIELD: f"{constants.tokeniser_constants.CLEF_TOKEN_PREFIX}{self.lh_clef}",
                 constants.tokeniser_constants.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
                 constants.tokeniser_constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
-                constants.tokeniser_constants.NUM_MEASURES_FIELD: f"Bar_{self.num_measures}",
+                constants.tokeniser_constants.NUM_MEASURES_FIELD: f"{constants.tokeniser_constants.BAR_TOKEN_PREFIX}{self.num_measures}",
                 constants.tokeniser_constants.DENSITY_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
                 constants.tokeniser_constants.DURATION_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
                 constants.tokeniser_constants.INTERVAL_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.INTERVAL_COMPL_TOKEN_PREFIX}{self.interval_complexity}"
@@ -270,6 +270,7 @@ class MyTokeniser(miditok.REMI):
             self.add_key_signatures_to_vocab()
             self.add_clefs_to_vocab()
             self.add_complexities_to_vocab()
+            self.add_bars_to_vocab()
 
 
     def encode_with_metadata(self, input_file: Path, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> dict:
@@ -343,6 +344,11 @@ class MyTokeniser(miditok.REMI):
             self.add_to_vocab(constants.tokeniser_constants.DURATION_COMPL_TOKEN_PREFIX + str(i))
             self.add_to_vocab(constants.tokeniser_constants.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
 
+
+    def add_bars_to_vocab(self) -> None:
+        for i in range(1, self.config.additional_params[constants.tokeniser_constants.MAX_BARS_FIELD] + 1):
+            self.add_to_vocab(constants.tokeniser_constants.BAR_TOKEN_PREFIX + str(i))
+
     # TODO: Maybe find a way to prevent false negatives, but wed need to extract which lists in the config have a predifined order
     # and which ones are just sets like the clefs, time signatures,
     @property
@@ -360,8 +366,8 @@ class MyTokeniser(miditok.REMI):
         res = ""
 
         tokenised_data = Metadata.TokenisedMetadata.type_to_dict(tokenised_data)
-        
-        if (t := tokenised_data[constants.tokeniser_constants.NUM_MEASURES_FIELD]) not in self.vocab:
+
+        if (t := int(tokenised_data[constants.tokeniser_constants.NUM_MEASURES_FIELD].replace(constants.tokeniser_constants.BAR_TOKEN_PREFIX, ""))) > self.config.additional_params[constants.tokeniser_constants.MAX_BARS_FIELD]:
             res += f"Invalid number of measures: {t} not in range 1-{self.config.additional_params[constants.tokeniser_constants.MAX_BARS_FIELD]} Bars\n"
 
         if (t := tokenised_data[constants.tokeniser_constants.TIME_SIGNATURE_FIELD]) not in self.vocab:

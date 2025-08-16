@@ -11,13 +11,13 @@ TOKENS_TOKENS_KEY: str = "tokens"
 
 # Constants for tokeniser configuration
 TIME_SIGNATURE_RANGE_FIELD: str = "time_signature_range"
-MAX_BARS_FIELD: str = "max_bar_embedding"
+MAX_BARS_FIELD: str = "max_bars" # dont set this to 'max_bar_embedding'(that will make the tokeniser )
 
 
 
 MODIFYABLE_TOKENISER_CONFIG_FIELDS: dict[str, Any] = {
     TIME_SIGNATURE_RANGE_FIELD: {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4], 2: [1, 2, 3, 4]},
-    MAX_BARS_FIELD: 51
+    MAX_BARS_FIELD: 52
 }
 
 
@@ -40,6 +40,7 @@ CLEF_FIELD_NAME: str = "clefs"
 PAD_TOKEN, BOS_TOKEN, EOS_TOKEN, MASK_TOKEN  = [f"{token}_None" for token in miditok.constants.SPECIAL_TOKENS]
 
 # Token prefixes
+BAR_TOKEN_PREFIX: str = "Bar_"
 KEY_SIG_TOKEN_PREFIX: str = "KeySig_"
 CLEF_TOKEN_PREFIX: str = "Clef_"
 DENSITY_COMPL_TOKEN_PREFIX: str = "Dens_"
