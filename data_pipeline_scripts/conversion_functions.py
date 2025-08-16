@@ -570,7 +570,9 @@ class mxl_to_midi(SingleFileConversionFunction):
         # metadata = Metadata(score)
 
         # Split hand into different instrument programs to separate them for tokenisation later
-        
+        if len(self.score.parts) != 2:
+            raise ValueError("Expected two staves (RH and LH), got something else.")
+
         lh = score.parts[1]
 
         lh.removeByClass(music21.instrument.Instrument)
@@ -748,8 +750,9 @@ class midi_to_tokens(SingleFileConversionFunction):
 
 
 class tokens_to_midi(SingleFileConversionFunction):
-    import music21, symusic
-    
+    import music21, symusic, dataclasses
+
+    metadata_length = len(dataclasses.fields(Metadata.TokenisedMetadata))
     def __init__(self, tokeniser: MyTokeniser):
         """
         Initialise a new instance of the tokens_to_midi class.
@@ -807,7 +810,7 @@ class tokens_to_midi(SingleFileConversionFunction):
 
 
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
-        import json, miditok, symusic
+        import json, miditok, symusic, dataclasses
 
         try:
             with input_file.open("r", encoding="utf-8") as f:
@@ -835,8 +838,8 @@ class tokens_to_midi(SingleFileConversionFunction):
             if "Bar_None" not in tok_seq.tokens:
                 raise ValueError("The token sequence does not contain a Bar_None token. This is required for the conversion to MIDI.")
             print(tok_seq.tokens)
-
-            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[11:])
+            
+            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[tokens_to_midi.metadata_length + 1:])
             #clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[tok_seq.tokens.index("Bar_0"):])
 
             output_path = output_dir / (input_file.stem + ".midi")
@@ -846,7 +849,7 @@ class tokens_to_midi(SingleFileConversionFunction):
 
             score = self.tokeniser.decode(clean_seq)
             
-            # score.tracks[0], score.tracks[1] = score.tracks[1], score.tracks[0]  # swap hands, so that the right hand is first
+            score.tracks[0], score.tracks[1] = score.tracks[1], score.tracks[0]  # swap hands, so that the right hand is first
             
             # set both hands to piano program as we split them onto different programs before
             for track in score.tracks:

@@ -237,13 +237,15 @@ class MyTokeniserConfig(miditok.classes.TokenizerConfig):
             :param pitch_range: Tuple defining the MIDI pitch range.
             :param max_bars: Maximum number of bars for embedding.
             """
-            
+            import dataclasses
             config = constants.tokeniser_constants.MYTOKENISER_BASE_CONFIG.copy()
             if time_signature_range:
                 config[constants.tokeniser_constants.TIME_SIGNATURE_RANGE_FIELD] = time_signature_range
 
             if max_bars:
                 config[constants.tokeniser_constants.MAX_BARS_FIELD] = max_bars
+
+            # config[constants.tokeniser_constants.METADATA_LENGTH_FIELD] = len(dataclasses.fields(Metadata.TokenisedMetadata))
 
             super().__init__(**config)
                    

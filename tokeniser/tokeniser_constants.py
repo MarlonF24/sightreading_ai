@@ -12,7 +12,7 @@ TOKENS_TOKENS_KEY: str = "tokens"
 # Constants for tokeniser configuration
 TIME_SIGNATURE_RANGE_FIELD: str = "time_signature_range"
 MAX_BARS_FIELD: str = "max_bars" # dont set this to 'max_bar_embedding'(that will make the tokeniser )
-
+METADATA_LENGTH_FIELD: str = "metadata_length"
 
 
 MODIFYABLE_TOKENISER_CONFIG_FIELDS: dict[str, Any] = {
@@ -26,6 +26,7 @@ MYTOKENISER_BASE_CONFIG: dict[str, Any] = {
             "use_time_signatures": True,
             # "use_chords": True,
             "use_rests": True,
+            #"use_pitch_intervals": True,
             # "chord_tokens_with_root_note": True,
             # "chord_unknown": (2, 4),
             "one_token_stream_for_programs": True,

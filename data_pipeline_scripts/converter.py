@@ -104,8 +104,10 @@ class Converter():
 
         If the destination path exists, it will be removed before the move.
         """
-        import shutil
 
+        # if src.name.startswith("Bachs"):
+        #     return
+        
         if src.is_dir():
             if not (temp := dest / src.name).exists():
                 src.rename(dest)
@@ -126,7 +128,7 @@ class Converter():
                 Converter.move_file(file, self.temp_dir_map[s])
 
     def load_stage_data_from_temp(self, *stages: str | PipelineStage):
-        for s in self.pipeline.to_stage(stages):
+        for s in self.pipeline.to_stage(*stages):
             for file in self.temp_dir_map[s].glob("*"):
                 Converter.move_file(file, self.data_dir_map[s])
 

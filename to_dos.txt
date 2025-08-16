@@ -28,6 +28,7 @@
 - from key sigs switch to music21.key.key for acutal major/minor/mode
 - statistical evaluation of properties that determine the complexities to find an appropriate weight (or weight function)
 -make that converter also takes str as stage 
+- maybe train without the bach chorales once
 
 INFO:
     - training errors with some assertion src < scr... are likely due to wrong max_positions_embedding in model config, or due to token outside of vocab 
