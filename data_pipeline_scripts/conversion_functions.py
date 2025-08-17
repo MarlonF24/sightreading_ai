@@ -811,6 +811,8 @@ class tokens_to_midi(SingleFileConversionFunction):
 
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
         import json, miditok, symusic, dataclasses
+        metadata_dir = output_dir / constants.data_pipeline_constants.METADATA_DIR_NAME
+        metadata_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             with input_file.open("r", encoding="utf-8") as f:
@@ -860,6 +862,10 @@ class tokens_to_midi(SingleFileConversionFunction):
                 raise ValueError("The decoded score is not a valid symusic Score object.")
             
             score.dump_midi(output_path.as_posix())
+
+            with open(metadata_dir / (output_path.stem + constants.METADATA_EXTENSION), "w") as f:
+                json.dump({constants.tokeniser_constants.TOKENS_KEY_SIGNATURE_KEY: jso[constants.tokeniser_constants.TOKENS_KEY_SIGNATURE_KEY], constants.tokeniser_constants.TOKENS_METADATA_KEY: jso[constants.tokeniser_constants.TOKENS_METADATA_KEY]}, f, indent=4)
+
             pass
     
 
@@ -894,8 +900,18 @@ class midi_to_musicxml(SingleFileConversionFunction):
 
     
     def music21_func(self, input_file: FilePath, output_dir: DirPath) -> List[FilePath]:
-        import music21
+        import music21, json
         score = music21.converter.parse(input_file)
+        with open(input_file.parent / constants.data_pipeline_constants.METADATA_DIR_NAME / (input_file.stem + constants.METADATA_EXTENSION), "r") as f:
+            jso = json.load(f)
+            key_signature = jso[constants.tokeniser_constants.TOKENS_KEY_SIGNATURE_KEY]
+        #raise NotImplementedError("This function is not implemented yet. It is planned to transpose the score to the desired key signature before writing it to MusicXML.")
+        
+        key_signature = music21.key.KeySignature(key_signature)
+        # remember: all input midis to the model were transposed to Cmaj/Amin
+        interval = music21.interval.Interval(key_signature.tonic, music21.pitch.Pitch("C4"))
+        score.transpose(interval)
+
         output_path = output_dir / (input_file.stem + constants.MUSICXML_EXTENSION)
         score.write('musicxml', fp=output_path)
         return [output_path]

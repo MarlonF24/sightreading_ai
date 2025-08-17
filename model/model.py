@@ -202,9 +202,14 @@ class MyModel(GPT2LMHeadModel):
         if not loaded:
             tokeniser.save_pretrained(cls.TRAINING_DIR)
 
+    
+
     @classmethod
-    def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata, output_dir: Path):
-        import torch, transformers
+    def generate_tokens(cls,metadata_tokens: Metadata.TokenisedMetadata, key_signature: int, output_dir: Path):
+        if key_signature > 7 or key_signature < -7:
+            raise ValueError(f"Invalid key signature: {key_signature}. Valid range is -7 to 7 sharps.")
+
+        import torch
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Load tokeniser and model
@@ -243,7 +248,7 @@ class MyModel(GPT2LMHeadModel):
         # Decode back to tokens
         output_ids = generated[0].tolist()
 
-        tokeniser.save_generated_tokens(output_dir / f"generated{constants.TOKENS_EXTENSION}", output_ids, metadata_tokens)
+        tokeniser.save_generated_tokens(output_dir / f"generated{constants.TOKENS_EXTENSION}", output_ids, key_signature, metadata_tokens)
 
 if __name__ == "__main__":
     tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 

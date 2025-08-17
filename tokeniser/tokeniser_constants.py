@@ -7,6 +7,7 @@ TOKENS_LABELS_KEY: str = "labels"
 TOKENS_TOKENISER_HASH_KEY: str = "tokeniser_hash"
 TOKENS_METADATA_KEY: str = "metadata"
 TOKENS_TOKENS_KEY: str = "tokens"
+TOKENS_KEY_SIGNATURE_KEY: str = "desired_key_signature"
 
 
 # Constants for tokeniser configuration
@@ -26,7 +27,7 @@ MYTOKENISER_BASE_CONFIG: dict[str, Any] = {
             "use_time_signatures": True,
             # "use_chords": True,
             "use_rests": True,
-            #"use_pitch_intervals": True,
+            "use_pitch_intervals": True,
             # "chord_tokens_with_root_note": True,
             # "chord_unknown": (2, 4),
             "one_token_stream_for_programs": True,

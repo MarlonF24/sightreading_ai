@@ -148,10 +148,8 @@ class Metadata:
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
-            "key_signature": self.key_signatures[0].sharps,
             "time_signature": self.time_signatures[0],
             "clefs": {"RH": self.rh_clefs[0], "LH": self.lh_clefs[0]},
-            "pitch_range": self.pitch_range,
             "num_measures": self.num_measures,
             "density_complexity": self.density_complexity,
             "duration_complexity": self.duration_complexity,
@@ -299,7 +297,7 @@ class MyTokeniser(miditok.REMI):
 
         return metadata_seq
 
-    def save_generated_tokens(self, output_file: Path, generated_tokens: list[int], metadata: Metadata | Metadata.TokenisedMetadata | dict) -> None:
+    def save_generated_tokens(self, output_file: Path, generated_tokens: list[int], key_signature: int, metadata: Metadata | Metadata.TokenisedMetadata | dict) -> None:
         import json
 
         if isinstance(metadata, Metadata):
@@ -310,6 +308,7 @@ class MyTokeniser(miditok.REMI):
         with open(output_file, "w") as f:
             json.dump({
                 constants.tokeniser_constants.TOKENS_INPUT_IDS_KEY: generated_tokens,
+                constants.tokeniser_constants.TOKENS_KEY_SIGNATURE_KEY: key_signature,
                 constants.tokeniser_constants.TOKENS_METADATA_KEY: metadata,
                 constants.tokeniser_constants.TOKENS_TOKENISER_HASH_KEY: self.hexa_hash
             }, f, indent=4)
