@@ -30,12 +30,12 @@ class Metadata:
     
     @cached_property
     def tempos(self) -> List[float]:
-        tempos = self.rh_part.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+        tempos = self.score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
         return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
     @cached_property
     def key_signatures(self) -> List[music21.key.KeySignature]:
-        signatures = list(self.rh_part.recurse().getElementsByClass(music21.key.KeySignature))
+        signatures = list(self.score.recurse().getElementsByClass(music21.key.KeySignature))
          
         if not signatures:
             raise ValueError("No key signatures found in the score.")
@@ -43,7 +43,7 @@ class Metadata:
 
     @cached_property
     def time_signatures(self) -> List[str]:
-        signatures = self.rh_part.recurse().getElementsByClass(music21.meter.TimeSignature)
+        signatures = self.score.recurse().getElementsByClass(music21.meter.TimeSignature)
         res = [signature.ratioString for signature in signatures]
         if not res:
             raise ValueError("No time signatures found in the score.")
@@ -68,11 +68,11 @@ class Metadata:
         return [clef.sign for clef in self.lh_part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
     
     @cached_property
-    def rh_notes(self) -> List[music21.note.NotRest]:
+    def rh_notes(self) -> List[music21.note.Note]:
         return [note for note in self.rh_part.flatten().notes]
 
     @cached_property
-    def lh_notes(self) -> List[music21.note.NotRest]:
+    def lh_notes(self) -> List[music21.note.Note]:
         return [note for note in self.lh_part.flatten().notes]
     
     @cached_property
@@ -96,7 +96,7 @@ class Metadata:
         return midi_values
     
     @cached_property
-    def notes(self) -> List[music21.note.NotRest]:
+    def notes(self) -> List[music21.note.Note]:
         return self.rh_notes + self.lh_notes  # combine notes from both parts
     
     @cached_property

@@ -10,6 +10,50 @@ class Generics:
     """
     A utility class containing generic methods used in the data pipeline scripts.
     """
+    import music21
+
+    @staticmethod
+    def transpose_score_to_key_sig(score: music21.stream.Score, target_key_sharps: int) -> music21.stream.Score:
+        """
+        Transpose the given score to the target key signature.
+
+        :param score: The score to transpose.
+        :type score: Score
+        :param target_key_sharps: The target key signature in sharps.
+        :type target_key_sharps: int
+        :return: The transposed score.
+        :rtype: Score
+        """
+        import copy
+        
+        # unfortunately the music21 score.transpose does not let you specify the desired key_signature, instead it will take an interval and can pick key_sigs like G# instead of enharmonic Ab. So, here we change the key_sig manually first, and then transpose the notes afterwards. music21 says that it will adapt the note transpositionto the given key_signature 
+
+        original_key_sigs = Metadata(score).key_signatures
+        new_score = copy.deepcopy(score)
+                        
+        new_metadata = Metadata(new_score)
+        new_key_sigs = new_metadata.key_signatures
+        for new_key_sig in new_key_sigs:
+            new_key_sig.sharps = target_key_sharps
+
+        interval = Generics.music21.interval.Interval(original_key_sigs[0].asKey('major').tonic, new_key_sigs[0].asKey('major').tonic)
+        # for some reason only giving it the halfsteps makes it consider the key to determine the best accidental
+        for n in new_metadata.notes:
+            n.transpose(interval.semitones, inPlace=True)
+
+        # # Check if the key signature is outside the acceptable range
+                            # if abs((temp := Metadata(new_score).key_signatures[0]).sharps) > 7:
+                            #     # This uses functionality from music21.key.KeySignature.transpose(), which for some reason doesnt get the enharmonic when an int is passed in, which we cant controll when transposing the whole score.
+                            #     # This manual transpose only of the key sig could corrupt the score where pitches are still saves as if in the old key sig:
+                            #     # Lets say that we change G# to Ab and then there will still be G# notes, as the score is written into midi pitches right after this, this should be fine though
+                            #     k1 = temp.asKey('major')
+                            #     p1 = k1.tonic
+                            #     p1 = p1.getEnharmonic()
+
+                            #     temp.sharps = music21.key.pitchToSharps(p1)
+                            #     temp.clearCache()
+
+        return new_score
 
     @staticmethod
     def str_error(e) -> str:
@@ -553,24 +597,20 @@ class mxl_to_midi(SingleFileConversionFunction):
 
         """
         from tokeniser.tokeniser import Metadata
-        import music21, json, warnings
+        import music21, json, warnings, copy
 
         metadata_dir: DirPath = output_dir / constants.data_pipeline_constants.METADATA_DIR_NAME
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
 
-        #try:
         score = music21.converter.parse(input_file)
-        # except ZeroDivisionError as e:
-        #     traceback.print_exc()
-        #     raise ZeroDivisionError(f"artificial error")
+       
 
         if not isinstance(score, music21.stream.Score):
             raise ValueError("Input file is not a valid MusicXML file.")
         
-        # metadata = Metadata(score)
 
         # Split hand into different instrument programs to separate them for tokenisation later
-        if len(self.score.parts) != 2:
+        if len(score.parts) != 2:
             raise ValueError("Expected two staves (RH and LH), got something else.")
 
         lh = score.parts[1]
@@ -622,31 +662,16 @@ class mxl_to_midi(SingleFileConversionFunction):
                 if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
                     raise ValueError(t[0].error_message)
 
-                music21.key.KeySignature
-
+                
                 if i <= initial_length and self.transpose:
                     # If transposing, create a new score for each possible transposition
                     transposed_scores = []
-                    for j in range(-6, 6):
-                        if j != 0:
-                            new_score = score.transpose(j)
-                            # Check if the key signature is outside the acceptable range
-                            if abs((temp := Metadata(new_score).key_signatures[0]).sharps) > 7:
-                                # This uses functionality from music21.key.KeySignature.transpose(), which for some reason doesnt get the enharmonic when an int is passed in, which we cant controll when transposing the whole score.
-                                # This manual transpose only of the key sig could corrupt the score where pitches are still saves as if in the old key sig:
-                                # Lets say that we change G# to Ab and then there will still be G# notes, as the score is written into midi pitches right after this, this should be fine though
-                                k1 = temp.asKey('major')
-                                p1 = k1.tonic
-                                p1 = p1.getEnharmonic()
-
-                                temp.sharps = music21.key.pitchToSharps(p1)
-                                temp.clearCache()
+                    
+                    for j in range(-7, 7):
+                        if j != metadata.key_signatures[0].sharps:
+                            new_score = Generics.transpose_score_to_key_sig(score, j)
                             
                             transposed_scores.append(new_score)
-
-                    # transposed_scores.extend(
-                    #     [score.transpose(j) for j in range(-6, 6) if j != 0]
-                    # )
 
                     score_stack.extend(transposed_scores)
 

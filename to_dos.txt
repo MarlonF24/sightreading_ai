@@ -23,7 +23,7 @@
 - make sure that output musicxml gets additionally transposed to actual key (so test before and then react)
 - force generation to output certain bar length if possible (difficult with BPE ) 
 - think about ways for minor/major classifier
-- switch to music21s analyzeStram for metadata
+- switch to music21s analyzeStram for metadata, generally overwork metadata to be smoother(remove unecessary stuff)
 - !!! could be solution: maybe give metadatatokens distinct tokens (dont risk them being taken by BPE)
 - from key sigs switch to music21.key.key for acutal major/minor/mode
 - statistical evaluation of properties that determine the complexities to find an appropriate weight (or weight function)
