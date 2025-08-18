@@ -11,3 +11,4 @@ model/training/
 .conda/
 requirements.txt
 *waifu2x*
+main.py

@@ -37,7 +37,7 @@ if __name__ == "__main__":
     pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=True)
     converter = Converter(pipeline=pipeline)
     
-    converter.multi_stage_conversion(converter.pipeline["midi_out"], converter.pipeline["musicxml_out"], batch_if_possible=False, overwrite=True)
+    converter.multi_stage_conversion("midi_out", "musicxml_out", batch_if_possible=False, overwrite=True)
 
     # converter.load_stage_data_from_temp("tokens_in")
     
