@@ -626,7 +626,7 @@ class mxl_to_midi(SingleFileConversionFunction):
         # note that this also splits at every end-repeat line
         if self.split:
             measures = score.parts[0].getElementsByClass(music21.stream.Measure)
-            splits = [1]  
+            splits = [0]  
             
             for i, measure in enumerate(measures, start=1):
                 
@@ -640,7 +640,7 @@ class mxl_to_midi(SingleFileConversionFunction):
             if not len(measures) in splits:
                 splits.append(len(measures))
 
-            score_stack = [score.measures(splits[i], splits[i + 1]) for i in range(len(splits) - 1)]
+            score_stack = [score.measures(splits[i] + 1, splits[i + 1]) for i in range(len(splits) - 1)]
             print(f"Splitting completed.", end="\r")
 
         i = 0
