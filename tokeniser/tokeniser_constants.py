@@ -31,7 +31,6 @@ MYTOKENISER_BASE_CONFIG: dict[str, Any] = {
             # "chord_tokens_with_root_note": True,
             # "chord_unknown": (2, 4),
             "one_token_stream_for_programs": True,
-            "clefs": ['G', 'F'],
             **MODIFYABLE_TOKENISER_CONFIG_FIELDS
         }
 

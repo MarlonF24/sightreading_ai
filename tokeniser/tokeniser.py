@@ -30,12 +30,12 @@ class Metadata:
     
     @cached_property
     def tempos(self) -> List[float]:
-        tempos = self.rh_part.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+        tempos = self.score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
         return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
     @cached_property
     def key_signatures(self) -> List[music21.key.KeySignature]:
-        signatures = list(self.rh_part.recurse().getElementsByClass(music21.key.KeySignature))
+        signatures = list(self.score.recurse().getElementsByClass(music21.key.KeySignature))
          
         if not signatures:
             raise ValueError("No key signatures found in the score.")
@@ -43,7 +43,7 @@ class Metadata:
 
     @cached_property
     def time_signatures(self) -> List[str]:
-        signatures = self.rh_part.recurse().getElementsByClass(music21.meter.TimeSignature)
+        signatures = self.score.recurse().getElementsByClass(music21.meter.TimeSignature)
         res = [signature.ratioString for signature in signatures]
         if not res:
             raise ValueError("No time signatures found in the score.")
@@ -54,7 +54,7 @@ class Metadata:
     def num_measures(self) -> int:
         try:
             score = music21.repeat.Expander(self.rh_part).process()
-        except Exception as e:
+        except Exception:
             score = self.score
         
         return len(score.getElementsByClass(music21.stream.Measure))
@@ -144,12 +144,14 @@ class Metadata:
         avg_interval = Metadata.INTERVAL_COMPLEXITY_WEIGHT * sum(self.intervals) / len(self.intervals) if self.intervals else 1
         return min(10, math.ceil(avg_interval / 2))  # Pitch complexity (based on interval size variability)
 
-    # deprecated, use data property instead
+    # deprecated
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
+            "key_signature": self.key_signatures[0],
             "time_signature": self.time_signatures[0],
             "clefs": {"RH": self.rh_clefs[0], "LH": self.lh_clefs[0]},
+            "pitch_range": self.pitch_range,
             "num_measures": self.num_measures,
             "density_complexity": self.density_complexity,
             "duration_complexity": self.duration_complexity,
@@ -163,12 +165,7 @@ class Metadata:
         This is useful for encoding the metadata into a format suitable for the tokeniser.
         """
         return self.TokenisedMetadata(
-            key_signature=self.key_signatures[0].sharps,
             time_signature=self.time_signatures[0],
-            rh_clef=self.rh_clefs[0],
-            lh_clef=self.lh_clefs[0],
-            lowest_pitch=self.pitch_range[0].midi,
-            highest_pitch=self.pitch_range[1].midi,
             num_measures=self.num_measures,
             density_complexity=self.density_complexity,
             duration_complexity=self.duration_complexity,
@@ -177,12 +174,7 @@ class Metadata:
 
     @dataclass
     class TokenisedMetadata:
-        key_signature: int
         time_signature: str
-        rh_clef: str
-        lh_clef: str
-        lowest_pitch: int
-        highest_pitch: int
         num_measures: int
         density_complexity: int
         duration_complexity: int
@@ -190,12 +182,7 @@ class Metadata:
 
         def to_dict(self) -> Dict[str, int]:
             return {
-                constants.tokeniser_constants.KEY_SIGNATURE_FIELD: f"{constants.tokeniser_constants.KEY_SIG_TOKEN_PREFIX}{self.key_signature}",
                 constants.tokeniser_constants.TIME_SIGNATURE_FIELD: f"TimeSig_{self.time_signature}",
-                constants.tokeniser_constants.RH_CLEF_FIELD: f"{constants.tokeniser_constants.CLEF_TOKEN_PREFIX}{self.rh_clef}",
-                constants.tokeniser_constants.LH_CLEF_FIELD: f"{constants.tokeniser_constants.CLEF_TOKEN_PREFIX}{self.lh_clef}",
-                constants.tokeniser_constants.LOWEST_PITCH_FIELD: f"Pitch_{self.lowest_pitch}",
-                constants.tokeniser_constants.HIGHEST_PITCH_FIELD: f"Pitch_{self.highest_pitch}",
                 constants.tokeniser_constants.NUM_MEASURES_FIELD: f"{constants.tokeniser_constants.BAR_TOKEN_PREFIX}{self.num_measures}",
                 constants.tokeniser_constants.DENSITY_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.DENSITY_COMPL_TOKEN_PREFIX}{self.density_complexity}",
                 constants.tokeniser_constants.DURATION_COMPLEXITY_FIELD: f"{constants.tokeniser_constants.DURATION_COMPL_TOKEN_PREFIX}{self.duration_complexity}",
@@ -242,9 +229,7 @@ class MyTokeniserConfig(miditok.classes.TokenizerConfig):
 
             if max_bars:
                 config[constants.tokeniser_constants.MAX_BARS_FIELD] = max_bars
-
-            # config[constants.tokeniser_constants.METADATA_LENGTH_FIELD] = len(dataclasses.fields(Metadata.TokenisedMetadata))
-
+                
             super().__init__(**config)
                    
 class MyTokeniser(miditok.REMI):
@@ -267,8 +252,6 @@ class MyTokeniser(miditok.REMI):
         # untrained ones get theirs created again, without our metadata tokens        
 
         if not self.is_trained:
-            self.add_key_signatures_to_vocab()
-            self.add_clefs_to_vocab()
             self.add_complexities_to_vocab()
             self.add_bars_to_vocab()
 
@@ -374,23 +357,12 @@ class MyTokeniser(miditok.REMI):
         if (t := tokenised_data[constants.tokeniser_constants.TIME_SIGNATURE_FIELD]) not in self.vocab:
             res += f"Invalid time signature: {t} not in {self.config.time_signature_range} Time Signatures\n"
 
-        if (c := tokenised_data[constants.tokeniser_constants.RH_CLEF_FIELD]) not in self.vocab:
-            res += f"Invalid RH clef: {c} not in {self.config.additional_params[constants.tokeniser_constants.CLEF_FIELD_NAME]} Clefs\n"
-
-        if (c := tokenised_data[constants.tokeniser_constants.LH_CLEF_FIELD]) not in self.vocab:
-            res += f"Invalid LH clef: {c} not in {self.config.additional_params[constants.tokeniser_constants.CLEF_FIELD_NAME]} Clefs\n"
-
-        if (l := tokenised_data[constants.tokeniser_constants.LOWEST_PITCH_FIELD]) not in self.vocab:
-            res += f"Invalid lowest pitch: {l} not in MIDI range {self.config.pitch_range}\n"
-
-        if (h := tokenised_data[constants.tokeniser_constants.HIGHEST_PITCH_FIELD]) not in self.vocab:
-            res += f"Invalid highest pitch: {h} not in MIDI range {self.config.pitch_range}\n"
-
         if res:
             return False, res
         
         return True, ""
 
+    # those are overrides
     @classmethod
     def from_pretrained(
         cls: Type["MyTokeniser"],
