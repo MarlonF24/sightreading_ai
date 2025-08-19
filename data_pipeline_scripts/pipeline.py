@@ -26,12 +26,12 @@ class PipelineStage():
             name (str): The name of the pipeline stage. This should be a unique identifier.
             extension (str): The file extension associated with this stage (e.g., ".musicxml", ".midi").
             children (dict[PipelineStage, _ConversionFunction], optional): A dictionary mapping child PipelineStage objects to the conversion function required to reach them from the current stage. Defaults to an empty dictionary.
-            extra_dirs (list[str], optional): A list of names of additional directories that will be created in this stage's data directory.
+            extra_dirs (list[Tuple[str, str]], optional): A list of tuples containing the names and extensions of additional directories that will be created in this stage's data directory.
         """
         self.name: str = name
         self.extension: str = extension
         self.children: dict[PipelineStage, _ConversionFunction] = children
-        self.extra_dirs: list[str] = extra_dirs
+        self.extra_dirs: list[Tuple[str, str]] = extra_dirs
 
 
     def __repr__(self) -> str:
@@ -294,15 +294,15 @@ class Pipeline():
 def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool, musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe', audiveris_app_dir: str = r"C:\Program Files\Audiveris\app") -> Pipeline:
 
     musicxml_out = PipelineStage("musicxml_out", constants.MUSICXML_EXTENSION, {})
-    
-    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {musicxml_out: conversion_functions.midi_to_musicxml()}, extra_dirs=[constants.data_pipeline_constants.METADATA_DIR_NAME])
-    
+
+    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {musicxml_out: conversion_functions.midi_to_musicxml()}, extra_dirs=[(constants.data_pipeline_constants.METADATA_DIR_NAME, constants.METADATA_EXTENSION)])
+
     tokens_out = PipelineStage("tokens_out", constants.TOKENS_EXTENSION, {midi_out: conversion_functions.tokens_to_midi(tokeniser)})
 
     tokens_in = PipelineStage("tokens_in", constants.TOKENS_EXTENSION, {})
     
-    midi_in = PipelineStage("midi_in", constants.MIDI_EXTENSION, children={tokens_in: conversion_functions.midi_to_tokens(tokeniser)}, extra_dirs=[constants.data_pipeline_constants.METADATA_DIR_NAME])
-    
+    midi_in = PipelineStage("midi_in", constants.MIDI_EXTENSION, children={tokens_in: conversion_functions.midi_to_tokens(tokeniser)}, extra_dirs=[(constants.data_pipeline_constants.METADATA_DIR_NAME, constants.METADATA_EXTENSION)])
+
     #musicxml_in = PipelineStage("musicxml_in", constants.MUSICXML_EXTENSION, {midi_in: conversion_functions.mxl_to_midi(tokeniser)})
 
     mxl_in = PipelineStage("mxl_in", constants.MXL_EXTENSION, children={midi_in: conversion_functions.mxl_to_midi(tokeniser)})

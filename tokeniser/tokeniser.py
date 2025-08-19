@@ -65,7 +65,7 @@ class Metadata:
         # except Exception:
         #     score = self.score
 
-        return len(self.score.getElementsByClass(music21.stream.Measure))
+        return len(self.rh_part.getElementsByClass(music21.stream.Measure))
 
     @cached_property
     def rh_clefs(self) -> List[str]:

@@ -23,6 +23,7 @@
 - from key sigs switch to music21.key.key for acutal major/minor/mode
 - statistical evaluation of properties that determine the complexities to find an appropriate weight (or weight function)
 - make it so that log file is available even in unfinished state (so append file, and then insert statistics in the end, or make statistics live update)
+- fix false positive skips (stem*extension) is not bulletproof
 
 INFO:
     - training errors with some assertion src < scr... are likely due to wrong max_positions_embedding in model config, or due to token outside of vocab 

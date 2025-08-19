@@ -121,22 +121,24 @@ class Converter():
             
             src.rename(temp)
 
-    def outcome_move_to_temp(self, outcome: ConversionOutcome, stage: PipelineStage) -> None:
-        if not outcome.is_skipped and outcome.successful:
+    def outcome_move_successful_inputs_to_temp(self, outcome: ConversionOutcome, stage: PipelineStage) -> None:
+        if not outcome.skipped and outcome.successful:
             self.move_file(outcome.input_file, self.temp_dir_map[stage])
-            for folder in stage.extra_dirs:
-                for file in folder.glob(f"{outcome.input_file.name}*"):
-                    self.move_file(file, self.temp_dir_map[stage] / folder.name)
+            for folder, extension in stage.extra_dirs:
+                if (temp := self.data_dir_map[stage] / folder / outcome.input_file.stem / extension).exists():
+                    self.move_file(temp, self.temp_dir_map[stage] / folder)
 
     def move_stage_data_to_temp(self, *stages: str | PipelineStage):
         for s in self.pipeline.to_stage(*stages):
             for file in self.data_dir_map[s].glob("*"):
                 Converter.move_file(file, self.temp_dir_map[s])
+            print(f"Moved data from {s.name} to temp dir {self.temp_dir_map[s].name}.\n")
 
     def load_stage_data_from_temp(self, *stages: str | PipelineStage):
         for s in self.pipeline.to_stage(*stages):
             for file in self.temp_dir_map[s].glob("*"):
                 Converter.move_file(file, self.data_dir_map[s])
+            print(f"Loaded data for {s.name} from temp dir {self.temp_dir_map[s].name}.\n")
 
     def batch_get_license(self, func: BatchConversionFunction) -> bool:
         """
@@ -156,7 +158,7 @@ class Converter():
         return do_conversion.lower() == "y"
             
 
-    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool = True, batch_if_possible: bool = True, move_to_temp: bool = False) -> None:
+    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool = True, batch_if_possible: bool = True, move_successful_inputs_to_temp: bool = False) -> None:
         """
         Performs a multi-stage conversion from the start stage to the target stage.
 
@@ -181,11 +183,11 @@ class Converter():
         current_start_stage = start_stage
 
         for current_target_stage in route[1:]:
-            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, move_to_temp)
+            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, move_successful_inputs_to_temp)
             current_start_stage = current_target_stage
 
 
-    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool=True, batch_if_possible: bool = True, move_to_temp: bool = False) -> None: 
+    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool=True, batch_if_possible: bool = True, move_successful_inputs_to_temp: bool = False) -> None: 
         """
         Performs a single-stage conversion from the start stage to the target stage.
 
@@ -212,19 +214,19 @@ class Converter():
         if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
             batch_licenced = self.batch_get_license(conversion_function) if not overwrite else True
             if batch_licenced:
-                self.logged_batch_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, move_to_temp)
+                self.logged_batch_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, move_successful_inputs_to_temp)
 
             else:
                 print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
             
         else:
-            self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_to_temp)
+            self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_successful_inputs_to_temp)
 
         print(log.stats["num_successful"], "successful, successful / attempted")
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, extension: str, move_to_temp: bool) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, extension: str, move_successful_inputs_to_temp: bool) -> None:
         """
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -251,13 +253,13 @@ class Converter():
                 outcome = conversion_function(input_file, output_dir, overwrite=overwrite)
             log.log(outcome)
 
-            if move_to_temp:
-                self.outcome_move_to_temp(outcome, start_stage)
+            if move_successful_inputs_to_temp:
+                self.outcome_move_successful_inputs_to_temp(outcome, start_stage)
 
         log.commit()
 
 
-    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, move_to_temp: bool) -> None:
+    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, move_successful_inputs_to_temp: bool) -> None:
         """
         Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -283,11 +285,11 @@ class Converter():
         log.commit()
 
         # TODO: find better way to handle something like metadata files    
-        if move_to_temp:
+        if move_successful_inputs_to_temp:
             extra_folders = [folder for folder in input_dir.glob("*") if folder.is_dir()]
 
             for outcome in outcomes:
-                self.outcome_move_to_temp(outcome, start_stage)
+                self.outcome_move_successful_inputs_to_temp(outcome, start_stage)
 
 class Log():
     """
