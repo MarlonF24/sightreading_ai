@@ -105,22 +105,28 @@ class Converter():
         If the destination path exists, it will be removed before the move.
         """
 
-        # if src.name.startswith("Bachs"):
-        #     return
+        dest.mkdir(parents=True, exist_ok=True)
         
         if src.is_dir():
             if not (temp := dest / src.name).exists():
-                src.rename(dest)
+                temp.mkdir(parents=True, exist_ok=False)
             
-            else:
-                for item in src.glob("*"):
-                    Converter.move_file(item, dest / src.name)
-                src.rmdir()
+            for item in src.glob("*"):
+                Converter.move_file(item, temp)
+            
+            src.rmdir()
         else:
             if (temp := dest / src.name).exists():
                 temp.unlink()
             
             src.rename(temp)
+
+    def outcome_move_to_temp(self, outcome: ConversionOutcome, stage: PipelineStage) -> None:
+        if not outcome.is_skipped and outcome.successful:
+            self.move_file(outcome.input_file, self.temp_dir_map[stage])
+            for folder in stage.extra_dirs:
+                for file in folder.glob(f"{outcome.input_file.name}*"):
+                    self.move_file(file, self.temp_dir_map[stage] / folder.name)
 
     def move_stage_data_to_temp(self, *stages: str | PipelineStage):
         for s in self.pipeline.to_stage(*stages):
@@ -150,7 +156,7 @@ class Converter():
         return do_conversion.lower() == "y"
             
 
-    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool = True, batch_if_possible: bool = True) -> None:
+    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool = True, batch_if_possible: bool = True, move_to_temp: bool = False) -> None:
         """
         Performs a multi-stage conversion from the start stage to the target stage.
 
@@ -175,11 +181,11 @@ class Converter():
         current_start_stage = start_stage
 
         for current_target_stage in route[1:]:
-            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible)
+            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, move_to_temp)
             current_start_stage = current_target_stage
 
 
-    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool=True, batch_if_possible: bool = True) -> None: 
+    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool=True, batch_if_possible: bool = True, move_to_temp: bool = False) -> None: 
         """
         Performs a single-stage conversion from the start stage to the target stage.
 
@@ -199,8 +205,6 @@ class Converter():
                 raise ValueError(f"Cannot convert from stage: {start_stage.name} to stage: {target_stage.name}")
         
         conversion_function = start_stage.children[target_stage]     
-        start_dir = self.data_dir_map[start_stage]
-        target_dir = self.data_dir_map[target_stage]
         
         log = Log(self, start_stage, target_stage)
 
@@ -208,21 +212,19 @@ class Converter():
         if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
             batch_licenced = self.batch_get_license(conversion_function) if not overwrite else True
             if batch_licenced:
-                print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
-                self.logged_batch_file_conversion(conversion_function, start_dir, target_dir, log, overwrite)
-            
+                self.logged_batch_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, move_to_temp)
+
             else:
                 print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
             
         else:
-            print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
-            self.logged_single_file_conversion(conversion_function, start_dir, target_dir, log, overwrite, start_stage.extension)
+            self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_to_temp)
 
         print(log.stats["num_successful"], "successful, successful / attempted")
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, input_dir: DirPath, output_dir: DirPath, log: Log, overwrite: bool, extension: str) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, extension: str, move_to_temp: bool) -> None:
         """
         Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -234,7 +236,13 @@ class Converter():
             overwrite (bool): A flag indicating whether existing files should be overwritten.
         """
 
-        for _file in input_dir.glob(f"*{extension}"):          
+        input_dir: DirPath = self.data_dir_map[start_stage]
+        output_dir: DirPath = self.data_dir_map[target_stage]
+        print(f"Single-file converting from {start_stage.name} to {target_stage.name}...\n")
+        
+        extra_folders = [folder for folder in input_dir.glob("*") if folder.is_dir()]
+        
+        for _file in input_dir.glob(f"*{extension}"):
             input_file: FilePath = FilePath(_file)
             
             if isinstance(conversion_function, BatchConversionFunction):
@@ -243,10 +251,13 @@ class Converter():
                 outcome = conversion_function(input_file, output_dir, overwrite=overwrite)
             log.log(outcome)
 
+            if move_to_temp:
+                self.outcome_move_to_temp(outcome, start_stage)
+
         log.commit()
 
 
-    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, input_dir: DirPath, output_dir: DirPath, log: Log, overwrite: bool) -> None:
+    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, move_to_temp: bool) -> None:
         """
         Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
 
@@ -261,11 +272,22 @@ class Converter():
         It then calls the batch conversion function with the input and output dirs, and logs the outcome.
         Finally, it commits the log.
         """
-    
-        outcome = conversion_function(input_dir, output_dir, do_batch=True, overwrite=overwrite)
-        log.log(outcome)
+        
+        input_dir: DirPath = self.data_dir_map[start_stage]
+        output_dir: DirPath = self.data_dir_map[target_stage]
+
+        print(f"Batch converting from {start_stage.name} to {target_stage.name}...\n")
+
+        outcomes = conversion_function(input_dir, output_dir, do_batch=True, overwrite=overwrite)
+        log.log(outcomes)
         log.commit()
 
+        # TODO: find better way to handle something like metadata files    
+        if move_to_temp:
+            extra_folders = [folder for folder in input_dir.glob("*") if folder.is_dir()]
+
+            for outcome in outcomes:
+                self.outcome_move_to_temp(outcome, start_stage)
 
 class Log():
     """
@@ -315,9 +337,16 @@ class Log():
 
         self.path: FilePath = Path(self.converter.log_dir_map[(start_stage, target_stage)].joinpath(f"{start_stage.name}_to_{target_stage.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}{constants.LOG_EXTENSION}"))
 
+
         self.start_stage_dir_path: DirPath = self.converter.data_dir_map[start_stage]
         self.target_stage_dir_path: DirPath = self.converter.data_dir_map[target_stage]
-        self.text: List[str] = [self.path.name + f"\n {self.start_stage_dir_path} -> {self.target_stage_dir_path}" + 2 * "\n"]
+        
+        self.header: str = self.path.name + f"\n {self.start_stage_dir_path} -> {self.target_stage_dir_path}" + 2 * "\n"
+
+        self.text: List[str] = [self.header]
+
+        with self.path.open(mode="w", encoding="utf-8") as file:
+            file.write("".join(self.text))
 
         self.num_total_files: int = len(list(self.converter.data_dir_map[start_stage].glob(f"*{start_stage.extension}")))
         self.num_attempted: int = 0
@@ -426,7 +455,7 @@ class Log():
         raise Log.HaltError(f"\nSingle-file conversion from {self.start_stage.name} to {self.target_stage.name} halted. Potential following conversions aborted.\nCritical failure since conversion of {self.index, outcome.input_file.name}.\n\tError:" + outcome.error_message)
     
 
-    def log(self, outcomes: List[ConversionOutcome]) -> None:
+    def log(self, outcomes: List[ConversionOutcome] | ConversionOutcome) -> None:
         """
         Logs the outcomes of each conversion process.
 
@@ -440,6 +469,9 @@ class Log():
         If the outcome is not successful and contains a halt, it calls the log_halt method.
         If the outcome is not successful and does not contain a halt, it calls the log_error method.
         """
+        if isinstance(outcomes, ConversionOutcome):
+            outcomes = [outcomes]
+
         for outcome in outcomes:
             self.num_attempted += 1
 
@@ -452,8 +484,10 @@ class Log():
                     self.log_halt(outcome)
                 else:
                     self.log_error(outcome)
-                
-    
+
+            with self.path.open(mode="a", encoding="utf-8") as file:
+                file.write(self.text[-1])
+
     @property
     def stats(self) -> dict[str, Any]:
         """
@@ -479,45 +513,22 @@ class Log():
         "has_halted": self.has_halted
         }
     
-    def insert_evaluation(self) -> None:
-        """
-        Inserts evaluation statistics at the beginning of the log.
-
-        The function calculates and inserts various statistics related to the conversion process,
-        such as the total number of files, attempted files, successful files, skipped files, errors,
-        and warned successful conversions. The statistics are formatted as key-value pairs and added
-        to the log text.
-
-        The statistics include:
-        - "num_total": The total number of files in the starting stage dir.
-        - "num_attempted": The number of files attempted to be converted.
-        - "num_successful": A tuple containing the number of successful conversions and the percentage of successful conversions.
-        - "num_skipped": A tuple containing the number of skipped conversions and the percentage of skipped conversions.
-        - "num_errors": A tuple containing the number of errors during the conversion process and the percentage of errors.
-        - "num_warned_from_successful": A tuple containing the number of warned successful conversions and the percentage of warned successful conversions.
-        """
-        self.text[1:1] = "\n"
-        self.text[1:1] = [
-            f"{key}: {value[0]} ({value[1] * 100:.2f}%)\n" if isinstance(value, tuple) else f"{key}: {value}\n"
-            for key, value in self.stats.items()
-        ]
         
     
     def commit(self) -> None:
         """
         Writes the log to a file and prints the evaluation statistics.
-
-        This method first inserts the evaluation statistics at the beginning of the log using the
-        `insert_evaluation` method. Then, it opens the log file in write mode and writes the log text
-        to the file.
-
-        Parameters:
-        None
-
-        Returns:
-        None
+        Inserts the stats after the 3rd line in the log file.
         """
-        self.insert_evaluation()
+        stats_lines = ["\n"] + [
+            f"{key}: {value[0]} ({value[1] * 100:.2f}%)\n" if isinstance(value, tuple) else f"{key}: {value}\n"
+            for key, value in self.stats.items()
+        ]
+        
+
+        for i, line in enumerate(stats_lines):
+            self.text.insert(2 + i, line)
+
         with self.path.open(mode="w", encoding="utf-8") as file:
             file.write("".join(self.text))
 

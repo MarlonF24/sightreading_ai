@@ -6,23 +6,19 @@ from model.dataloader import MyTokenDataset
 from pathlib import Path
 
 if __name__ == "__main__":
-    # metadata_tokens = Metadata.TokenisedMetadata(
-    #    key_signature=4,
-    #    time_signature="4/4",
-    #    rh_clef="G",
-    #    lh_clef="F",
-    #    lowest_pitch=30,
-    #    highest_pitch=100,
-    #    num_measures=10,
-    #    density_complexity=1,
-    #    duration_complexity=1,
-    #    interval_complexity=1
-    # )
+    metadata_tokens = Metadata.TokenisedMetadata(
+       time_signature="4/4",
+       num_measures=10,
+       density_complexity=3,
+       duration_complexity=3,
+       interval_complexity=3
+    )
 
-    # MyModel.generate_tokens(
-    #     metadata_tokens=metadata_tokens,
-    #     output_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_out")
-    # )
+    MyModel.generate_tokens(
+        metadata_tokens=metadata_tokens,
+        key_signature=-3,
+        output_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_out")
+    )
 
 
     # tokeniser = MyTokeniser()
@@ -34,12 +30,15 @@ if __name__ == "__main__":
 
     tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
 
-    pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=True)
+    pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
     converter = Converter(pipeline=pipeline)
+   
+    # converter.load_stage_data_from_temp("mxl_in")
+    
+    converter.multi_stage_conversion("mxl_in", "midi_in", batch_if_possible=False, overwrite=True)
 
-    converter.multi_stage_conversion("midi_out", "musicxml_out", batch_if_possible=False, overwrite=True)
-
-    # converter.load_stage_data_from_temp("tokens_in")
+    # converter.move_stage_data_to_temp("pdf_preprocessed")
+    
     
     # MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
  
@@ -54,7 +53,7 @@ if __name__ == "__main__":
     
     # print(f"Average length of tokens: {sum(l) / len(l)}")
     # print(f"Total number of tokens: {sum(l)}")
-    
+     
 
 
     # from data_pipeline_scripts.conversion_functions import Generics

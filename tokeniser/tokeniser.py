@@ -11,7 +11,7 @@ class Metadata:
     DURATION_COMPLEXITY_WEIGHT = constants.tokeniser_constants.DURATION_COMPLEXITY_WEIGHT
     INTERVAL_COMPLEXITY_WEIGHT = constants.tokeniser_constants.INTERVAL_COMPLEXITY_WEIGHT
 
-    score: music21.stream.base.Score 
+    score: music21.stream.Score 
 
     def __post_init__(self):
         if len(self.score.parts) != 2:
@@ -19,6 +19,11 @@ class Metadata:
         self.key_signatures
         self.time_signatures
         self.num_measures
+        music21.stream
+        
+        for repeat in self.score.recurse().getElementsByClass(music21.repeat.RepeatMark):
+            #repeat = cast(music21.repeat.RepeatMark, repeat)
+            repeat.activeSite.remove(repeat)
 
     @cached_property
     def rh_part(self) -> music21.stream.base.Part:
@@ -38,7 +43,9 @@ class Metadata:
         signatures = list(self.score.recurse().getElementsByClass(music21.key.KeySignature))
          
         if not signatures:
-            raise ValueError("No key signatures found in the score.")
+            self.rh_part.insert(3, music21.key.KeySignature(0))  # default to C major if no key signature found
+            self.lh_part.insert(3, music21.key.KeySignature(0))  # same for left hand
+            return [music21.key.KeySignature(0)]
         return signatures
 
     @cached_property
@@ -52,13 +59,14 @@ class Metadata:
 
     @cached_property
     def num_measures(self) -> int:
-        try:
-            score = music21.repeat.Expander(self.rh_part).process()
-        except Exception:
-            score = self.score
-        
-        return len(score.getElementsByClass(music21.stream.Measure))
-    
+        #depricated, as we not delete any repeats in post init
+        # try:
+        #     score = music21.repeat.Expander(self.rh_part).process()
+        # except Exception:
+        #     score = self.score
+
+        return len(self.score.getElementsByClass(music21.stream.Measure))
+
     @cached_property
     def rh_clefs(self) -> List[str]:
         return [clef.sign for clef in self.rh_part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]

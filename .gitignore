@@ -3,11 +3,11 @@ __pycache__/
 *.pyc
 .DS_Store
 data_pipeline/
-temp/
+preprocessed_pdfs/
 image.png
 sightreading_ai.code_workspace
 stuff/
-model/training/
+model/training*/
 .conda/
 requirements.txt
-*waifu2x*
+main.py

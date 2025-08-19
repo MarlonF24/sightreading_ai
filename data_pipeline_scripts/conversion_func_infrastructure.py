@@ -44,7 +44,7 @@ class SingleFileConversionFunction(ABC):
     is_batchable: ClassVar[bool] = False
 
     @abstractmethod
-    def skip_single_file(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]: 
+    def skip_single_file(self, input_file: FilePath, output_dir: DirPath) -> ConversionOutcome: 
         """
         An abstract method that determines whether a single file should be skipped during the conversion process.
 
@@ -58,7 +58,7 @@ class SingleFileConversionFunction(ABC):
         ... 
 
     @abstractmethod
-    def conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]: 
+    def conversion(self, input_file: FilePath, output_dir: DirPath) -> ConversionOutcome: 
         """
         Performs the single-file conversion operation.
 
@@ -92,7 +92,7 @@ class SingleFileConversionFunction(ABC):
         """
         ... 
 
-    def __call__(self, input_file: FilePath, output_dir: DirPath, overwrite: bool = True) -> List[ConversionOutcome]: 
+    def __call__(self, input_file: FilePath, output_dir: DirPath, overwrite: bool = True) -> ConversionOutcome: 
         """
         Executes the single-file conversion operation based on the provided parameters.
 
@@ -114,6 +114,7 @@ class SingleFileConversionFunction(ABC):
         
         try:
             return self.conversion(input_file, output_dir)
+        
         finally:
             self.clean_up(input_file, output_dir)
 
@@ -130,7 +131,7 @@ class BatchConversionFunction(ABC):
     is_batchable: ClassVar[bool] = True
 
     @abstractmethod
-    def skip_single_file(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
+    def skip_single_file(self, input_file: FilePath, output_dir: DirPath) -> ConversionOutcome:
         """
         (non-batch only) An abstract method that determines whether a single file should be skipped during the conversion process.
 
@@ -144,7 +145,7 @@ class BatchConversionFunction(ABC):
         ... 
 
     @abstractmethod
-    def single_file_conversion(self, input_file: FilePath, output_dir: DirPath) -> List[ConversionOutcome]:
+    def single_file_conversion(self, input_file: FilePath, output_dir: DirPath) -> ConversionOutcome:
         """
         (non-batch only) Performs the single-file conversion operation.
 
@@ -219,7 +220,7 @@ class BatchConversionFunction(ABC):
     @overload
     def __call__(self, input_path: DirPath, output_dir: DirPath, do_batch: Literal[True], overwrite: bool = True) -> List[ConversionOutcome]:...
 
-    def __call__(self, input_path: Union[FilePath, DirPath], output_dir: DirPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome]: 
+    def __call__(self, input_path: Union[FilePath, DirPath], output_dir: DirPath, do_batch: bool = True, overwrite: bool = True) -> List[ConversionOutcome] | ConversionOutcome: 
         """
         Executes the batch or single-file conversion operation based on the provided parameters.
 

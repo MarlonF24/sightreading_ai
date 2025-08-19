@@ -18,7 +18,7 @@ METADATA_LENGTH_FIELD: str = "metadata_length"
 
 MODIFYABLE_TOKENISER_CONFIG_FIELDS: dict[str, Any] = {
     TIME_SIGNATURE_RANGE_FIELD: {8: [3, 12, 6, 9], 4: [5, 6, 3, 2, 1, 4], 2: [1, 2, 3, 4]},
-    MAX_BARS_FIELD: 52
+    MAX_BARS_FIELD: 64
 }
 
 
