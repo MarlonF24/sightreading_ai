@@ -33,11 +33,11 @@ if __name__ == "__main__":
     pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
     converter = Converter(pipeline=pipeline)
    
-    # converter.load_stage_data_from_temp("midi_in")
+    # converter.load_stage_data_from_temp("mxl_in")
 
-    converter.multi_stage_conversion("midi_in", "tokens_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=True)
+    converter.multi_stage_conversion("mxl_in", "midi_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=False)
 
-    # converter.move_stage_data_to_temp("pdf_preprocessed")
+    # converter.move_stage_data_to_temp("mxl_in")
     
     
     # MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)

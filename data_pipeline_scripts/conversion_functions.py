@@ -616,7 +616,8 @@ class mxl_to_midi(SingleFileConversionFunction):
 
     Inherits from SingleFileConversionFunction.
     """
-
+    import music21
+    
     def __init__(self, tokeniser: MyTokeniser, split: bool = True, transpose: bool = True):
         """Initialise a new instance of the mxl_to_midi class.
 
@@ -638,6 +639,72 @@ class mxl_to_midi(SingleFileConversionFunction):
     def clean_up(self, input_file: FilePath, output_dir: DirPath):
         pass
 
+    @staticmethod
+    def refurbish_score(score: music21.stream.Score):
+        import music21
+
+        num_parts = len(score.parts)
+        # Sometimes scores are corrupted, where a section has voice parts instead of piano. thus, we accept scores with 4 parts and try to merge the voice parts into the piano parts
+        if num_parts == 2:
+            for part in score.parts:
+                if not all(isinstance(instrument, music21.instrument.Piano) for instrument in part.getInstruments()):
+                    part.removeByClass(music21.instrument.Instrument)
+                
+                part.insert(0, music21.instrument.Piano())
+                part.partName = "Piano"
+
+        elif num_parts == 4:
+            piano_parts: list[music21.stream.Part] = []
+            non_piano_parts: list[music21.stream.Part] = []
+
+            # here we rely on that both piano and non_piano parts are sorted as rh, lh
+            for part in score.parts:
+                if len(piano_parts) < 2 and isinstance(part.getInstrument(), music21.instrument.Piano):
+                    piano_parts.append(part) 
+                    # clean off any stray instruments in the part
+                    for instrument in part.getInstruments():
+                        if not isinstance(instrument, music21.instrument.Piano):
+                            part.remove(instrument)
+                else:
+                    non_piano_parts.append(part)
+
+            for j, non_piano_part in enumerate(non_piano_parts):
+                corresponding_piano_part = piano_parts[j]
+
+                score.remove(non_piano_part)
+
+                if len(non_piano_measures := non_piano_part.getElementsByClass(music21.stream.Measure)) != len(piano_measures := corresponding_piano_part.getElementsByClass(music21.stream.Measure)):
+                    raise ValueError("Attempted to merge non-piano parts into piano parts but they have different numbers of measures.")
+
+                measure_zip = zip(non_piano_measures, piano_measures)
+                
+                for non_piano_measure, piano_measure in measure_zip:
+                    if (temp := non_piano_measure.notes) and piano_measure.notes:
+                        raise ValueError(f"Attempted to merge non-piano part into piano part but they both have notes in the same measure -> corrupt input data.")
+                
+                    if temp:
+                        piano_measure.removeByClass(music21.note.GeneralNote)
+                        piano_measure.append(list(non_piano_measure.notesAndRests))
+
+        else:
+            raise ValueError(f"{num_parts} found, {__class__}.refurbish_score can only attempt to refurbish scores with 2 or 4 staves.")
+
+
+
+        # change left hand to different program so that our tokeniser can distinguish the hands when given the midi
+        lh = score.parts[1]
+
+        lh.removeByClass(music21.instrument.Instrument)
+            
+        piano_lh = music21.instrument.ElectricPiano()
+        lh.insert(0, piano_lh)
+
+        # deleting repeats (remember the tokeniser's measure limit: this makes longer score accessible)
+        for repeat in score.recurse().getElementsByClass(music21.repeat.RepeatMark):
+            repeat.activeSite.remove(repeat)
+
+
+    
     def music21_func(self, input_file: FilePath, output_dir: DirPath) -> List[FilePath]:
         """
         This function is responsible for converting a MusicXML file to a MIDI file using the music21 library.
@@ -657,21 +724,13 @@ class mxl_to_midi(SingleFileConversionFunction):
         metadata_dir.mkdir(parents=True, exist_ok=True)  # Create metadata dir if it doesn't exist
 
         score = music21.converter.parse(input_file)
-
+        
         if not isinstance(score, music21.stream.Score):
             raise ValueError("Input file is not a valid MusicXML file.")
+    
+
+        mxl_to_midi.refurbish_score(score)
         
-        # Split hand into different instrument programs to separate them for tokenisation later
-        if len(score.parts) != 2:
-            raise ValueError("Expected two staves (RH and LH), got something else.")
-
-        lh = score.parts[1]
-
-        lh.removeByClass(music21.instrument.Instrument)
-            
-        piano_lh = music21.instrument.ElectricPiano()
-        lh.insert(0, piano_lh)
-
         score_stack = [score]
         
         # note that this also splits at every end-repeat line

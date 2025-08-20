@@ -125,7 +125,7 @@ class Converter():
         if not outcome.skipped and outcome.successful:
             self.move_file(outcome.input_file, self.temp_dir_map[stage])
             for folder, extension in stage.extra_dirs:
-                if (temp := self.data_dir_map[stage] / folder / outcome.input_file.stem / extension).exists():
+                if (temp := self.data_dir_map[stage] / folder / outcome.input_file.stem + extension).exists():
                     self.move_file(temp, self.temp_dir_map[stage] / folder)
 
     def move_stage_data_to_temp(self, *stages: str | PipelineStage):
@@ -522,14 +522,13 @@ class Log():
         Writes the log to a file and prints the evaluation statistics.
         Inserts the stats after the 3rd line in the log file.
         """
-        stats_lines = ["\n"] + [
+        stats_lines = [
             f"{key}: {value[0]} ({value[1] * 100:.2f}%)\n" if isinstance(value, tuple) else f"{key}: {value}\n"
             for key, value in self.stats.items()
-        ]
-        
+        ] + ["\n"]
 
         for i, line in enumerate(stats_lines):
-            self.text.insert(2 + i, line)
+            self.text.insert(1 + i, line)
 
         with self.path.open(mode="w", encoding="utf-8") as file:
             file.write("".join(self.text))

@@ -14,23 +14,20 @@ class Metadata:
     score: music21.stream.Score 
 
     def __post_init__(self):
-        if len(self.score.parts) != 2:
-            raise ValueError("Expected two staves (RH and LH), got something else.")
-        self.key_signatures
+        instrument_lists = [part.getInstruments() for part in self.score.parts]
+
+        if temp := len(self.score.parts) != 2 or any(not isinstance(instrument, music21.instrument.Piano) for instrument_list in instrument_lists for instrument in instrument_list):
+            raise ValueError(f"Metadata expects scores with two piano staves (RH and LH), got {temp} staves with instruments {instrument_lists}.")
+
         self.time_signatures
-        self.num_measures
-        music21.stream
-        
-        for repeat in self.score.recurse().getElementsByClass(music21.repeat.RepeatMark):
-            #repeat = cast(music21.repeat.RepeatMark, repeat)
-            repeat.activeSite.remove(repeat)
+        self.key_signatures
 
     @cached_property
-    def rh_part(self) -> music21.stream.base.Part:
+    def rh_part(self) -> music21.stream.Part:
         return self.score.parts[0]
     
     @cached_property
-    def lh_part(self) -> music21.stream.base.Part:
+    def lh_part(self) -> music21.stream.Part:
         return self.score.parts[1]
     
     @cached_property
@@ -43,38 +40,42 @@ class Metadata:
         signatures = list(self.score.recurse().getElementsByClass(music21.key.KeySignature))
          
         if not signatures:
-            self.rh_part.insert(3, music21.key.KeySignature(0))  # default to C major if no key signature found
-            self.lh_part.insert(3, music21.key.KeySignature(0))  # same for left hand
-            return [music21.key.KeySignature(0)]
+            signature = self.score.analyze('key')
+            self.score.keySignature = signature
+            signatures = [signature]
         return signatures
 
     @cached_property
-    def time_signatures(self) -> List[str]:
+    def time_signatures(self) -> List[music21.meter.base.TimeSignature]:
+        # Note: this can be corruptive if the score has multple time signatures but not the first one was returned
         signatures = self.score.recurse().getElementsByClass(music21.meter.TimeSignature)
-        res = [signature.ratioString for signature in signatures]
-        if not res:
-            raise ValueError("No time signatures found in the score.")
-        return res 
-        
+
+        # If no time signatures are found, fall back to the best time signature of each measure this can also be corruptive, as it could ignore any time signature changes
+        if not signatures:
+            signature_list = []
+            rh_measures = self.rh_part.getElementsByClass(music21.stream.Measure)
+            lh_measures = self.lh_part.getElementsByClass(music21.stream.Measure)
+            
+            for measure in list(rh_measures) + list(lh_measures):
+                try:
+                    signature_list.append(measure.bestTimeSignature())
+                except music21.exceptions21.MeterException as e:
+                    pass
+                
+
+            mode = max(set(signature_list), key=signature_list.count)
+            
+            rh_measures[0].timeSignature = mode  # set the first measure's time signature to the mode
+            lh_measures[0].timeSignature = mode
+            
+            signatures = [mode]
+
+        return list(signatures)
 
     @cached_property
     def num_measures(self) -> int:
-        #depricated, as we not delete any repeats in post init
-        # try:
-        #     score = music21.repeat.Expander(self.rh_part).process()
-        # except Exception:
-        #     score = self.score
-
         return len(self.rh_part.getElementsByClass(music21.stream.Measure))
 
-    @cached_property
-    def rh_clefs(self) -> List[str]:
-        return [clef.sign for clef in self.rh_part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
-    
-    @cached_property
-    def lh_clefs(self) -> List[str]:
-        return [clef.sign for clef in self.lh_part.recurse().getElementsByClass(music21.clef.Clef) if clef.sign]
-    
     @cached_property
     def rh_notes(self) -> List[music21.note.NotRest]:
         return [note for note in self.rh_part.flatten().notes]
@@ -131,7 +132,7 @@ class Metadata:
     
     @cached_property
     def lh_intervals(self) -> List[int]:
-        return [abs(n2 - n1) for n1, n2 in zip(self.lh_midi_values[:-1], self.lh_midi_values[1:])]  # intervals for left hand only
+        return [abs(n2 - n1) for n1, n2 in zip(self.lh_midi_values[:-1], self.lh_midi_values[1:])]  
     
     @cached_property
     def intervals(self) -> List[int]:
@@ -156,9 +157,8 @@ class Metadata:
     @cached_property
     def data(self) -> Dict[str, Any]:
         return {
-            "key_signature": self.key_signatures[0],
-            "time_signature": self.time_signatures[0],
-            "clefs": {"RH": self.rh_clefs[0], "LH": self.lh_clefs[0]},
+            "key_signature": self.key_signatures[0].sharps,
+            "time_signature": self.time_signatures[0].ratioString,
             "pitch_range": self.pitch_range,
             "num_measures": self.num_measures,
             "density_complexity": self.density_complexity,
@@ -173,7 +173,7 @@ class Metadata:
         This is useful for encoding the metadata into a format suitable for the tokeniser.
         """
         return self.TokenisedMetadata(
-            time_signature=self.time_signatures[0],
+            time_signature=self.time_signatures[0].ratioString,
             num_measures=self.num_measures,
             density_complexity=self.density_complexity,
             duration_complexity=self.duration_complexity,
@@ -262,7 +262,26 @@ class MyTokeniser(miditok.REMI):
         if not self.is_trained:
             self.add_complexities_to_vocab()
             self.add_bars_to_vocab()
+            self.remove_pitch_drum_tokens_from_vocab()
+            # self.remove_unecessary_program_tokens_from_vocab()
+            self.stuff_vocab_index_holes()
 
+
+    def stuff_vocab_index_holes(self):
+        for i, token in enumerate(self.vocab):
+            self.vocab[token] = i
+
+    def remove_pitch_drum_tokens_from_vocab(self):
+        for token in self.vocab.copy():
+            if token.startswith("PitchDrum"):
+                del self.vocab[token]
+
+    def remove_unecessary_program_tokens_from_vocab(self):
+        for token in self.vocab.copy():
+            if token.startswith("Program"):
+                if token.endswith("0") or token.endswith("2"):
+                    continue
+                del self.vocab[token]
 
     def encode_with_metadata(self, input_file: Path, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> dict:
         metadata_seq = self.encode_metadata(tokenised_metadata)
