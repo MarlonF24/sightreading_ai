@@ -84,7 +84,8 @@ class MyModel(GPT2LMHeadModel):
     def analyse_sequence_lengths_for_cutoff(tokens_dir: Path, target_percentile: float) -> int:
         """
         Analyzes the sequence lengths in JSON files within a directory and determines the maximum sequence length
-        to keep a specified percentile of files.
+        to keep a specified percentile of files. Shows a visual distribution histogram.
+        
         Args:
             tokens_dir (Path): Directory containing JSON files, each with an "input_ids" key.
             target_percentile (float): The percentile (between 0 and 1) of files to keep based on sequence length.
@@ -93,10 +94,8 @@ class MyModel(GPT2LMHeadModel):
         Raises:
             ValueError: If target_percentile is not between 0 and 1.
         Side Effects:
-            Prints an analysis of sequence length cutoffs for several percentiles, highlighting the selected cutoff.
+            Prints a histogram and analysis of sequence length cutoffs for several percentiles.
         """
-        
-        
         import json
         
         if target_percentile < 0 or target_percentile > 1:
@@ -111,10 +110,38 @@ class MyModel(GPT2LMHeadModel):
         lengths.sort()
         total_files = len(lengths)
         
-        # Show analysis for multiple cutoffs
-        cutoffs = [0.90, 0.95, 0.98, 0.99, 0.995]
+        # Calculate the selected max_length first
+        target_idx = int(total_files * target_percentile)
+        selected_max_length = lengths[target_idx - 1] if target_idx > 0 else max(lengths)
         
-        print("Cutoff analysis:")
+        # Create histogram visualization
+        try:
+            import plotext as plt
+            
+            plt.clear_data()
+            plt.hist(lengths, bins=min(30, len(set(lengths))))  # Adaptive bins
+            plt.title("🎵 Sequence Length Distribution")
+            plt.xlabel("Sequence Length (tokens)")
+            plt.ylabel("Number of Files")
+            
+            # Add vertical line for cutoff
+            plt.axvline(selected_max_length, color='red', label=f'{target_percentile*100}% cutoff')
+            
+            # Set reasonable plot size for terminal
+            plt.plotsize(80, 20)  # width, height in characters
+            plt.show()
+            
+            print()  # Add spacing after plot
+            
+        except ImportError:
+            print("📊 Install 'plotext' for histogram visualization: pip install plotext")
+            print(f"📈 Data summary: {total_files} files, lengths from {min(lengths)} to {max(lengths)} tokens\n")
+        
+        # Show analysis for multiple cutoffs
+        cutoffs = [0.70, 0.80, 0.90, 0.95, 0.98, 0.99, 0.995]
+        
+        print("📋 Cutoff Analysis:")
+        print("─" * 70)
         for cutoff in cutoffs:
             idx = int(total_files * cutoff)
             kept_files = idx
@@ -122,19 +149,20 @@ class MyModel(GPT2LMHeadModel):
             max_length_at_cutoff = lengths[idx - 1] if idx > 0 else 0
             
             # Highlight the target percentile
-            marker = " ← SELECTED" if cutoff == target_percentile else ""
+            marker = " ← 🎯 SELECTED" if cutoff == target_percentile else ""
             
             print(f"  {cutoff*100:4.1f}%: max_length={max_length_at_cutoff:4d}, "
-                f"keep {kept_files:4d} files, discard {discarded_files:2d} files{marker}")
-    
-        # Calculate the selected max_length
-        target_idx = int(total_files * target_percentile)
-        selected_max_length = lengths[target_idx - 1] if target_idx > 0 else max(lengths)
+                  f"keep {kept_files:4d} files, discard {discarded_files:2d} files{marker}")
+
+        print("\n✅ Selected Configuration:")
+        print(f"  📏 Max sequence length: {selected_max_length} tokens")
+        print(f"  📁 Files kept: {target_idx:,}/{total_files:,} ({target_percentile*100:.1f}%)")
+        print(f"  🗑️  Files discarded: {total_files - target_idx:,}")
         
-        print(f"\nSelected {target_percentile*100}% cutoff:")
-        print(f"  Max sequence length: {selected_max_length}")
-        print(f"  Files kept: {target_idx}/{total_files}")
-        print(f"  Files discarded: {total_files - target_idx}")
+        # Memory estimate
+        memory_per_token = 4  # bytes for int32
+        est_memory_mb = (selected_max_length * memory_per_token * 4) / (1024 * 1024)  # batch_size=4
+        print(f"  💾 Est. memory per batch: ~{est_memory_mb:.1f} MB")
         
         return selected_max_length
 

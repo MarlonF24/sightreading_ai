@@ -14,9 +14,9 @@ class Metadata:
     score: music21.stream.Score 
 
     def __post_init__(self):
-        instrument_lists = [part.getInstruments() for part in self.score.parts]
+        instrument_lists = [list(part.getInstruments()) for part in self.score.parts]
 
-        if temp := len(self.score.parts) != 2 or any(not isinstance(instrument, music21.instrument.Piano) for instrument_list in instrument_lists for instrument in instrument_list):
+        if len(temp := self.score.parts) != 2 or any(not isinstance(instrument, music21.instrument.Piano) for instrument_list in instrument_lists for instrument in instrument_list):
             raise ValueError(f"Metadata expects scores with two piano staves (RH and LH), got {temp} staves with instruments {instrument_lists}.")
 
         self.time_signatures
@@ -36,41 +36,60 @@ class Metadata:
         return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
     @cached_property
+    def rh_measures(self) -> List[music21.stream.Measure]:
+        return self.rh_part.getElementsByClass(music21.stream.Measure)
+
+    @cached_property
+    def lh_measures(self) -> List[music21.stream.Measure]:
+        return self.lh_part.getElementsByClass(music21.stream.Measure)
+
+    @cached_property
     def key_signatures(self) -> List[music21.key.KeySignature]:
         signatures = list(self.score.recurse().getElementsByClass(music21.key.KeySignature))
          
         if not signatures:
-            signature = self.score.analyze('key')
-            self.score.keySignature = signature
-            signatures = [signature]
+            signatures = [self.score.analyze('key')]
+
+            if not self.score.keySignature:
+                self.score.keySignature = signatures[0]
+
+            if not self.rh_measures[0].keySignature:
+                self.rh_measures[0].keySignature = signatures[0]
+
+            if not self.lh_measures[0].keySignature:
+                self.lh_measures[0].keySignature = signatures[0]
+
         return signatures
 
     @cached_property
     def time_signatures(self) -> List[music21.meter.base.TimeSignature]:
         # Note: this can be corruptive if the score has multple time signatures but not the first one was returned
-        signatures = self.score.recurse().getElementsByClass(music21.meter.TimeSignature)
+        signatures = list(self.score.recurse().getElementsByClass(music21.meter.TimeSignature))
 
         # If no time signatures are found, fall back to the best time signature of each measure this can also be corruptive, as it could ignore any time signature changes
+        
         if not signatures:
             signature_list = []
-            rh_measures = self.rh_part.getElementsByClass(music21.stream.Measure)
-            lh_measures = self.lh_part.getElementsByClass(music21.stream.Measure)
-            
-            for measure in list(rh_measures) + list(lh_measures):
+
+
+            for measure in list(self.rh_measures) + list(self.lh_measures):
                 try:
                     signature_list.append(measure.bestTimeSignature())
                 except music21.exceptions21.MeterException as e:
                     pass
                 
+            signatures = [max(set(signature_list), key=signature_list.count)]
 
-            mode = max(set(signature_list), key=signature_list.count)
-            
-            rh_measures[0].timeSignature = mode  # set the first measure's time signature to the mode
-            lh_measures[0].timeSignature = mode
-            
-            signatures = [mode]
+            if not self.score.timeSignature:
+                self.score.timeSignature = signatures[0]
 
-        return list(signatures)
+            if not self.rh_measures[0].timeSignature:
+                self.rh_measures[0].timeSignature = signatures[0]
+            if not self.lh_measures[0].timeSignature:
+                self.lh_measures[0].timeSignature = signatures[0]
+        
+
+        return signatures
 
     @cached_property
     def num_measures(self) -> int:
@@ -263,7 +282,7 @@ class MyTokeniser(miditok.REMI):
             self.add_complexities_to_vocab()
             self.add_bars_to_vocab()
             self.remove_pitch_drum_tokens_from_vocab()
-            # self.remove_unecessary_program_tokens_from_vocab()
+            self.remove_unecessary_program_tokens_from_vocab()
             self.stuff_vocab_index_holes()
 
 
@@ -279,7 +298,7 @@ class MyTokeniser(miditok.REMI):
     def remove_unecessary_program_tokens_from_vocab(self):
         for token in self.vocab.copy():
             if token.startswith("Program"):
-                if token.endswith("0") or token.endswith("2"):
+                if token in {"Program_0", "Program_2"}: # Keep only Program_0 and Program_2 which we wana use as rh/lh
                     continue
                 del self.vocab[token]
 

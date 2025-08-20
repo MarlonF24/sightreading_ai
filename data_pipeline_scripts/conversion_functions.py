@@ -641,6 +641,16 @@ class mxl_to_midi(SingleFileConversionFunction):
 
     @staticmethod
     def refurbish_score(score: music21.stream.Score):
+        """
+        !!! to finish refurbishing call Metadata(score), this will add missing time and key signatures
+        Refurbish a MusicXML score by ensuring it has the correct instrument parts.
+
+        :param score: The MusicXML score to refurbish.
+        :type score: music21.stream.Score
+        :raises ValueError: If the score has an unexpected number of parts.
+        :raises ValueError: If the score has corrupted parts.
+        :raises ValueError: _description_
+        """
         import music21
 
         num_parts = len(score.parts)
@@ -687,7 +697,7 @@ class mxl_to_midi(SingleFileConversionFunction):
                         piano_measure.append(list(non_piano_measure.notesAndRests))
 
         else:
-            raise ValueError(f"{num_parts} found, {__class__}.refurbish_score can only attempt to refurbish scores with 2 or 4 staves.")
+            raise ValueError(f"{num_parts} parts found in score, {__class__}.refurbish_score can only attempt to refurbish scores with 2 or 4 staves.")
 
 
 
@@ -699,9 +709,6 @@ class mxl_to_midi(SingleFileConversionFunction):
         piano_lh = music21.instrument.ElectricPiano()
         lh.insert(0, piano_lh)
 
-        # deleting repeats (remember the tokeniser's measure limit: this makes longer score accessible)
-        for repeat in score.recurse().getElementsByClass(music21.repeat.RepeatMark):
-            repeat.activeSite.remove(repeat)
 
 
     
@@ -727,10 +734,8 @@ class mxl_to_midi(SingleFileConversionFunction):
         
         if not isinstance(score, music21.stream.Score):
             raise ValueError("Input file is not a valid MusicXML file.")
-    
 
         mxl_to_midi.refurbish_score(score)
-        
         score_stack = [score]
         
         # note that this also splits at every end-repeat line
@@ -741,8 +746,8 @@ class mxl_to_midi(SingleFileConversionFunction):
             for i, measure in enumerate(measures, start=1):
                 
                 if t := measure.finalBarline:
-                    if t.__class__ == music21.bar.Barline:
-                        splits.append(i)
+                    #if t.__class__ == music21.bar.Barline:
+                    splits.append(i)
             
             if len(splits) == 1:
                 warnings.warn("Input file does not contain any bar end lines. Either this is an exercise fragment or it is not properly formatted.")
@@ -764,6 +769,10 @@ class mxl_to_midi(SingleFileConversionFunction):
                 i += 1
                 score = score_stack.pop(0)
                 
+                # deleting repeats (remember the tokeniser's measure limit: this makes longer score accessible)
+                for repeat in score.recurse().getElementsByClass(music21.repeat.RepeatMark):
+                    repeat.activeSite.remove(repeat)
+
                 metadata = Metadata(score)
                 
                 if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):

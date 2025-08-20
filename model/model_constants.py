@@ -1,7 +1,7 @@
 from typing import *
 
 # Model constants
-SEQUENCE_LENGTH_CUTOFF_PERCENTILE: float = 0.95
+SEQUENCE_LENGTH_CUTOFF_PERCENTILE: float = 0.9
 
 TRAINING_DIR_NAME: str = "training"
 LOGS_DIR_NAME: str = "logs"
