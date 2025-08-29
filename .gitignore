@@ -9,6 +9,5 @@ sightreading_ai.code_workspace
 stuff/
 model/training*/
 .conda/
-requirements.txt
-main.py
 tokenisation/tokenizer.json
+to_dos.txt

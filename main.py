@@ -37,6 +37,7 @@ if __name__ == "__main__":
     # converter.load_stage_data_from_temp(False, "midi_in")
 
     converter.multi_stage_conversion("pdf_in", "mxl_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=False, move_error_files_to_temp=False)
+    
 
     # converter.move_stage_data_to_temp(True, "mxl_in")
     
