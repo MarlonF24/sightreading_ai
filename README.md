@@ -82,6 +82,14 @@ Computes musical metrics:
 - **Training Pipeline**: Integrated with HuggingFace Trainer for training
 - **Sequence Length Analysis**: Optimal cutoff determination from training data
 
+#### Custom Dataset (`MyTokenDataset`)
+
+- **Tokeniser Compatibility Validation**: Filters files by tokeniser hash to ensure data consistency
+- **Automatic Sequence Formatting**: Adds BOS/EOS tokens and handles proper label alignment for causal language modeling
+- **Memory-Efficient Loading**: Sorts sequences by length to minimize padding waste during batching
+- **Metadata Masking**: Sets metadata tokens and special tokens to -100 in labels to exclude from loss calculation
+- **Length Filtering**: Automatically excludes sequences exceeding model's maximum position embeddings
+
 
 
 ## Installation & Setup
@@ -215,7 +223,7 @@ sightreading_ai/
 - Finding optimal tokeniser configuration
 - Finding eligible and sizeable dataset to build prototype
 - Finetune complexity metrics
- 
+
 
 
 
