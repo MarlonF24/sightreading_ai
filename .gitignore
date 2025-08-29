@@ -11,3 +11,4 @@ model/training*/
 .conda/
 requirements.txt
 main.py
+tokenisation/tokenizer.json

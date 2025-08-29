@@ -9,9 +9,9 @@ if __name__ == "__main__":
     # metadata_tokens = Metadata.TokenisedMetadata(
     #    time_signature="4/4",
     #    num_measures=10,
-    #    density_complexity=3,
-    #    duration_complexity=3,
-    #    interval_complexity=3
+    #    density_complexity=5,
+    #    duration_complexity=5,
+    #    interval_complexity=5
     # )
 
     # MyModel.generate_tokens(
@@ -30,17 +30,18 @@ if __name__ == "__main__":
 
     tokeniser = MyTokeniser.from_pretrained("C:/Users/marlo/sightreading_ai/tokeniser")
 
-    # pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
-    # converter = Converter(pipeline=pipeline)
+    pipeline = construct_music_pipeline(tokeniser=tokeniser, pdf_preprocess=False)
+    converter = Converter(pipeline=pipeline)
+    
    
-    # converter.load_stage_data_from_temp(False, "mxl_in")
+    # converter.load_stage_data_from_temp(False, "midi_in")
 
-    # converter.multi_stage_conversion("mxl_in", "tokens_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=True, move_error_files_to_temp=False)
+    converter.multi_stage_conversion("pdf_in", "mxl_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=False, move_error_files_to_temp=False)
 
     # converter.move_stage_data_to_temp(True, "mxl_in")
     
     
-    MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
+    # MyModel.train_from_tokens_dir(tokens_dir=Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens_in"), tokeniser=tokeniser)
  
 
     # import json
@@ -73,13 +74,8 @@ if __name__ == "__main__":
     #     # Clear the calculated number of lines
     #     Generics.clear_n_terminal_lines(lines_needed)
     
-    # from data_pipeline_scripts.conversion_functions import mxl_to_midi
+    # from data_pipeline_scripts.conversion_functions import to_midi
     # import music21
-
-    # score = music21.converter.parse("data_pipeline/data/mxl_in/Bach-Ana-Magdalena_part_032.mxl")
-    # mxl_to_midi.refurbish_score(score)
-    # Metadata(score)
-    # score.write("musicxml", "C:/Users/marlo/sightreading_ai/stuff/Bach-Ana-Magdalena_part_001_refurbished.musicxml")
 
     pass
 

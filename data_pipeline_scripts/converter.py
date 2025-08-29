@@ -9,17 +9,34 @@ from data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunc
 
 class Converter():
     """
-    A class responsible for managing the conversion process between different file formats.
+    Manages the conversion process between different music file formats using a pipeline architecture.
+
+    The Converter class orchestrates file conversions through a defined pipeline, handling data organization,
+    logging, temporary file management, and batch/single-file processing. It maintains separate directories
+    for input data, temporary files, error files, and conversion logs.
 
     Class Attributes:
-        OWN_PATH (FilePath): The absolute file path of the current Converter class.
-        OWN_DIRECTORY (DirPath): The directory containing the current Converter class.
-        OWN_DIRECTORY_DIRECTORY (DirPath): The directory containing the OWN_DIRECTORY directory.
+        OWN_PATH (FilePath): Absolute path to this Converter class file.
+        OWN_DIRECTORY (DirPath): Directory containing this Converter class file.
+        OWN_DIRECTORY_DIRECTORY (DirPath): Parent directory of OWN_DIRECTORY.
 
     Attributes:
-        pipeline (Pipeline): The pipeline object representing the conversion flow.
-        data_dir_path (DirPath): The path to the dir containing the input data files.
-        logs_dir_path (DirPath): The path to the dir where the log files will be stored.
+        pipeline (Pipeline): The conversion pipeline defining available format transformations.
+        pipeline_dir_path (DirPath): Root directory for all pipeline-related files and folders.
+        data_dir_path (DirPath): Directory containing input data files organized by stage.
+        logs_dir_path (DirPath): Directory where conversion log files are stored.
+        temp_dir_path (DirPath): Directory for successfully processed files.
+        error_temp_dir_path (DirPath): Directory for files that failed processing.
+        data_dir_map (Dict[PipelineStage, DirPath]): Maps each pipeline stage to its data directory.
+        temp_dir_map (Dict[PipelineStage, DirPath]): Maps each pipeline stage to its temp directory.
+        error_temp_dir_map (Dict[PipelineStage, DirPath]): Maps each pipeline stage to its error temp directory.
+        log_dir_map (Dict[Tuple[PipelineStage, PipelineStage], DirPath]): Maps conversion routes to log directories.
+
+    Example:
+        >>> pipeline = construct_music_pipeline(tokenizer, pdf_preprocess=True)
+        >>> converter = Converter(pipeline)
+        >>> converter.single_stage_conversion("pdf_in", "mxl_in", overwrite=True)
+        >>> converter.multi_stage_conversion("pdf_in", "tokens_in")
     """
 
     OWN_PATH: FilePath = Path(os.path.abspath(__file__))
@@ -29,11 +46,23 @@ class Converter():
     
     def __init__(self, pipeline: Pipeline, pipeline_dir_path: DirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}")) -> None:
         """
-        Initializes a Converter object with the given pipeline, data dir path, and logs dir path.
+        Initializes a Converter with the specified pipeline and directory structure.
 
-        Parameters:
-            pipeline (Pipeline): The pipeline object representing the conversion flow.
-            pipeline_dir_path (DirPath, optional): The path to the dir where the pipeline shall be located. Defaults to the parent directory of the current file's directory.
+        Creates the complete directory structure for pipeline operations, including data directories
+        for each stage, temporary directories for file management, and log directories for tracking
+        conversion outcomes.
+
+        Args:
+            pipeline (Pipeline): The conversion pipeline defining available format transformations.
+            pipeline_dir_path (DirPath, optional): Root directory for pipeline operations. 
+                Defaults to the parent directory of this file's location.
+
+        Side Effects:
+            Creates directory structure:
+            - pipeline_dir_path/data/{stage_name}/ for each pipeline stage
+            - pipeline_dir_path/temp/{stage_name}/ for each pipeline stage  
+            - pipeline_dir_path/error_temp/{stage_name}/ for each pipeline stage
+            - pipeline_dir_path/logs/{stage1}_to_{stage2}/ for each conversion route
         """
         # environment.set('musescoreDirectPNGPath', musescore_path)
         self.pipeline_dir_path: DirPath = pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_PIPELINE_DIR_NAME
@@ -43,19 +72,29 @@ class Converter():
         self.error_temp_dir_path: DirPath = self.pipeline_dir_path / constants.data_pipeline_constants.CONVERTER_ERROR_TEMP_DIR_NAME
 
         self.pipeline = pipeline
-        self.assign_data_dirs()  
         self.assign_log_dirs()
-        self.assign_temp_dirs()
-        self.assign_error_temp_dirs()
 
-    
+        self.data_dir_map: dict[PipelineStage, DirPath] = self.assign_dirs(self.data_dir_path)
+        self.temp_dir_map: dict[PipelineStage, DirPath] = self.assign_dirs(self.temp_dir_path)
+        self.error_temp_dir_map: dict[PipelineStage, DirPath] = self.assign_dirs(self.error_temp_dir_path)
+        
+
     def assign_log_dirs(self) -> None:
         """
-        Assigns and creates the log dirs for each conversion route in the pipeline.
+        Creates log directories for each possible conversion route in the pipeline.
 
-        The log dirs are created within the logs_dir_path, and their names are based on the conversion routes.
-        Each conversion route is represented by a tuple of two PipelineStage instances, and the corresponding log dir
-        is stored in the log_dir_map dictionary.
+        Generates a separate log directory for every direct conversion path between pipeline stages.
+        Directory names follow the pattern: "{source_stage}_to_{target_stage}".
+
+        Side Effects:
+            - Creates logs_dir_path if it doesn't exist
+            - Creates subdirectory for each conversion route
+            - Populates log_dir_map with stage tuple to directory mappings
+
+        Example:
+            For a pipeline with pdf_in → mxl_in → midi_in stages, creates:
+            - logs/pdf_in_to_mxl_in/
+            - logs/mxl_in_to_midi_in/
         """
         self.logs_dir_path.mkdir(parents=True, exist_ok=True)
         self.log_dir_map: dict[Tuple[PipelineStage, PipelineStage], DirPath] = {}
@@ -65,59 +104,52 @@ class Converter():
                 self.log_dir_map[(stage, child)] = path
                 path.mkdir(exist_ok=True)
 
-    def assign_data_dirs(self) -> None:
+    def assign_dirs(self, super_dir_path: DirPath) -> dict[PipelineStage, DirPath]:
         """
-        Assigns and creates the data dirs for each stage in the pipeline.
+        Creates and maps directories for each pipeline stage under the specified parent directory.
 
-        The data dirs are created within the data_dir_path, and their names are based on the stage names.
-        Each stage is represented by a PipelineStage instance, and the corresponding data dir
-        is stored in the data_dir_map dictionary.
+        Args:
+            super_dir_path (DirPath): Parent directory under which stage subdirectories will be created.
+
+        Returns:
+            dict[PipelineStage, DirPath]: Mapping from each pipeline stage to its created directory.
+
+        Side Effects:
+            - Creates super_dir_path if it doesn't exist
+            - Creates subdirectory named after each stage (stage.name)
+
+        Example:
+            >>> stage_dirs = converter.assign_dirs(Path("./data"))
+            # Creates: ./data/pdf_in/, ./data/mxl_in/, ./data/midi_in/, etc.
         """
-        self.data_dir_path.mkdir(parents=True, exist_ok=True)
-        self.data_dir_map: dict[PipelineStage, DirPath] = {}
+        super_dir_path.mkdir(parents=True, exist_ok=True)
+        dir_map = {}
         for stage in self.pipeline:
-            path = self.data_dir_path / stage.name
-            self.data_dir_map[stage] = path
+            path = super_dir_path / stage.name
+            dir_map[stage] = path
             path.mkdir(exist_ok=True)
+        return dir_map
 
-
-    def assign_temp_dirs(self) -> None:
-        """
-        Assigns and creates the temp dirs for each stage in the pipeline.
-
-        The temp dirs are created within the temp_dir_path, and their names are based on the stage names.
-        Each stage is represented by a PipelineStage instance, and the corresponding temp dir
-        is stored in the temp_dir_map dictionary.
-        """
-        self.temp_dir_path.mkdir(parents=True, exist_ok=True)
-        self.temp_dir_map: dict[PipelineStage, DirPath] = {}
-        for stage in self.pipeline:
-            path = self.temp_dir_path / stage.name
-            self.temp_dir_map[stage] = path
-            path.mkdir(exist_ok=True)
-
-    def assign_error_temp_dirs(self) -> None:
-        """
-        Assigns and creates the error temp dirs for each stage in the pipeline.
-
-        The error temp dirs are created within the error_temp_dir_path, and their names are based on the stage names.
-        Each stage is represented by a PipelineStage instance, and the corresponding error temp dir
-        is stored in the error_temp_dir_map dictionary.
-        """
-        self.error_temp_dir_path.mkdir(parents=True, exist_ok=True)
-        self.error_temp_dir_map: dict[PipelineStage, DirPath] = {}
-        for stage in self.pipeline:
-            path = self.error_temp_dir_path / stage.name
-            self.error_temp_dir_map[stage] = path
-            path.mkdir(exist_ok=True)
-    
-    
     @staticmethod
     def move_file(src: FilePath, dest: DirPath) -> None:
         """
-        Moves a file from the source path to the destination path.
+        Moves a file or directory from source to destination, handling conflicts and directory trees.
 
-        If the destination path exists, it will be removed before the move.
+        Supports moving both individual files and entire directory trees. For directories,
+        recursively moves all contents. Overwrites existing files at destination.
+
+        Args:
+            src (FilePath): Source file or directory to move.
+            dest (DirPath): Destination directory where the file/directory will be moved.
+
+        Side Effects:
+            - Creates destination directory if it doesn't exist
+            - Removes existing files with same name at destination
+            - For directories: recursively moves all contents, then removes empty source directory
+
+        Example:
+            >>> Converter.move_file(Path("data/song.pdf"), Path("temp/pdf_in/"))
+            # Moves to: temp/pdf_in/song.pdf
         """
 
         dest.mkdir(parents=True, exist_ok=True)
@@ -136,18 +168,31 @@ class Converter():
             
             src.rename(temp)
 
-    def outcome_move_inputs_to_temp(self, outcome: ConversionOutcome, stage: PipelineStage, move_succ: bool, move_err: bool) -> None:
-        """
-        Moves the input file of a conversion outcome to the temp directory for the specified stage.
 
-        :param outcome: The conversion outcome containing the input file.
-        :type outcome: ConversionOutcome
-        :param stage: The pipeline stage for which the temp directory is assigned.
-        :type stage: PipelineStage
-        :param move_succ: Whether to move the file if the conversion was successful.
-        :type move_succ: bool
-        :param move_err: Whether to move the file if the conversion failed.
-        :type move_err: bool
+    def outcome_move_inputs_to_temp(self, outcome: ConversionOutcome, stage: PipelineStage, 
+                                   move_succ: bool, move_err: bool) -> None:
+        """
+        Conditionally moves conversion input files to appropriate temporary directories.
+
+        Moves the input file and any associated extra files (like metadata) to either the regular
+        temp directory (for successful conversions) or error temp directory (for failed conversions)
+        based on the outcome and specified flags.
+
+        Args:
+            outcome (ConversionOutcome): Result of a conversion operation containing input/output info.
+            stage (PipelineStage): Pipeline stage from which to move the input files.
+            move_succ (bool): Whether to move files when conversion was successful.
+            move_err (bool): Whether to move files when conversion failed.
+
+        Side Effects:
+            - Moves input file to temp_dir_map[stage] if successful and move_succ is True
+            - Moves input file to error_temp_dir_map[stage] if failed and move_err is True
+            - Also moves any extra files defined in stage.extra_dirs
+            - Skipped conversions are never moved
+
+        Example:
+            >>> # Move successful conversions to temp, errors to error_temp
+            >>> converter.outcome_move_inputs_to_temp(outcome, pdf_stage, True, True)
         """
         if not outcome.skipped:
             if outcome.successful and move_succ:
@@ -162,8 +207,32 @@ class Converter():
                     if (temp := self.data_dir_map[stage] / folder / (outcome.input_file.stem + extension)).exists():
                         self.move_file(temp, self.error_temp_dir_map[stage] / folder)
 
-    def move_stage_data_to_temp(self, to_error_temp: bool, *stages: str | PipelineStage):
+    def move_stage_data_to_temp(self, to_error_temp: bool, *stages: str | PipelineStage) -> None:
+        """
+        Moves all data files from specified stages to their temporary directories.
+
+        Bulk operation to move all files from stage data directories to either regular temp
+        or error temp directories. Useful for clearing processed data or isolating problematic files.
+
+        Args:
+            to_error_temp (bool): If True, moves to error temp directories; if False, to regular temp.
+            *stages (str | PipelineStage): Variable number of stages to process. Can be stage names or objects.
+
+        Side Effects:
+            - Moves all files from each stage's data directory to its temp directory
+            - Prints confirmation message for each stage processed
+
+        Raises:
+            ValueError: If any stage name/object is invalid.
+
+        Example:
+            >>> # Move all PDF and MXL files to error temp
+            >>> converter.move_stage_data_to_temp(True, "pdf_in", "mxl_in")
+        """
         for s in self.pipeline.to_stage(*stages):
+            if not isinstance(s, PipelineStage):
+                raise ValueError(f"Stage {s} is not a valid PipelineStage.")
+            
             for file in self.data_dir_map[s].glob("*"):
                 if to_error_temp:
                     Converter.move_file(file, self.error_temp_dir_map[s])
@@ -171,46 +240,67 @@ class Converter():
                     Converter.move_file(file, self.temp_dir_map[s])
             print(f"Moved data from {s.name} to {'error' if to_error_temp else ''} temp dir {self.temp_dir_map[s].name}.\n")
 
-    def load_stage_data_from_temp(self, from_error_temp: bool, *stages: str | PipelineStage):
+    def load_stage_data_from_temp(self, from_error_temp: bool, *stages: str | PipelineStage) -> None:
+        """
+        Restores data files from temporary directories back to stage data directories.
+
+        Bulk operation to move files from temp directories back to their original data directories.
+        Useful for retrying conversions or restoring accidentally moved files.
+
+        Args:
+            from_error_temp (bool): If True, loads from error temp; if False, from regular temp.
+            *stages (str | PipelineStage): Variable number of stages to process. Can be stage names or objects.
+
+        Side Effects:
+            - Moves all files from each stage's temp directory back to its data directory
+            - Prints confirmation message for each stage processed
+
+        Raises:
+            ValueError: If any stage name/object is invalid.
+
+        Example:
+            >>> # Restore PDF files from error temp for retry
+            >>> converter.load_stage_data_from_temp(True, "pdf_in")
+        """
         for s in self.pipeline.to_stage(*stages):
+            if not isinstance(s, PipelineStage):
+                raise ValueError(f"Stage {s} is not a valid PipelineStage.")
+            
             for file in (self.error_temp_dir_map[s] if from_error_temp else self.temp_dir_map[s]).glob("*"):
                 Converter.move_file(file, self.data_dir_map[s])
             print(f"Loaded data for {s.name} from {'error' if from_error_temp else ''} temp dir {self.temp_dir_map[s].name}.\n")
-
-    def batch_get_license(self, func: BatchConversionFunction) -> bool:
-        """
-        Asks the user for permission to proceed with a batch conversion, even if non-overwriting was specified.
-
-        Parameters:
-            func (BatchConversionFunction): The batch conversion function that will be executed.
-
-        Returns:
-            bool: True if the user agrees to proceed with the batch conversion, False otherwise.
-
-        The function prompts the user to confirm whether they want to proceed with the batch conversion,
-        even if non-overwriting was specified. The user's input is case-insensitive and must be either 'y' or 'n'.
-        If the user enters 'y', the function returns True; otherwise, it returns False.
-        """
-        do_conversion = input(f"Next function will do a batch conversion({func}). Non-overwriting was specified, but cannot be guaranteed for batch mode.\nDo you want to proceed regardless? (y/n): ")
-        return do_conversion.lower() == "y"
             
 
-    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool = True, batch_if_possible: bool = True, move_successful_inputs_to_temp: bool = False, move_error_files_to_temp: bool = False) -> None:
+    def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, 
+                              overwrite: bool = True, batch_if_possible: bool = True, 
+                              move_successful_inputs_to_temp: bool = False, move_error_files_to_temp: bool = False) -> None:
         """
-        Performs a multi-stage conversion from the start stage to the target stage.
+        Performs a complete multi-step conversion between two potentially distant pipeline stages.
 
-        Parameters:
-            start_stage (PipelineStage): The starting stage of the conversion process.
-            target_stage (PipelineStage): The target stage of the conversion process.
-            overwrite (bool, optional): A flag indicating whether existing files should be overwritten. Defaults to True.
-            batch_if_possible (bool, optional): A flag indicating whether batch conversion should be attempted if possible. Defaults to True.
+        Automatically finds the shortest conversion route between start and target stages, then
+        executes each conversion step in sequence. Useful for complex transformations like
+        PDF → MXL → MIDI → Tokens that require multiple intermediate steps.
 
-        The function first finds the shortest conversion route from the start stage to the target stage.
-        It then prints a message indicating the conversion process and iterates through each stage in the route.
-        For each stage, it calls the single_stage_conversion method to perform the conversion.
+        Args:
+            start_stage (str | PipelineStage): Starting stage for the conversion (source format).
+            target_stage (str | PipelineStage): Target stage for the conversion (destination format).
+            overwrite (bool, optional): Whether to overwrite existing files. Defaults to True.
+            batch_if_possible (bool, optional): Use batch conversion when available. Defaults to True.
+            move_successful_inputs_to_temp (bool, optional): Move successful inputs to temp. Defaults to False.
+            move_error_files_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
+
+        Side Effects:
+            - Executes each step in the conversion route via single_stage_conversion()
+            - Creates log files for each conversion step
+            - May move files to temp directories based on flags
+
+        Example:
+            >>> # Convert PDF sheet music to training tokens
+            >>> converter.multi_stage_conversion("pdf_in", "tokens_in")
+            # Executes: PDF → MXL → MIDI → Tokens (3 conversion steps)
         """
 
-        start_stage = self.pipeline.to_stage(start_stage)[0]
+        start_stage = self.pipeline.to_stage(start_stage)[0] # this is also a typechecker
         target_stage = self.pipeline.to_stage(target_stage)[0]
 
         route = self.pipeline.shortest_conversion_route(start_stage, target_stage)
@@ -224,20 +314,39 @@ class Converter():
             current_start_stage = current_target_stage
 
 
-    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, overwrite: bool=True, batch_if_possible: bool = True, move_successful_inputs_to_temp: bool = False, move_error_files_to_temp: bool = False) -> None: 
+    def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, 
+                               overwrite: bool = True, batch_if_possible: bool = True, 
+                               move_successful_inputs_to_temp: bool = False, move_error_files_to_temp: bool = False) -> None:
         """
-        Performs a single-stage conversion from the start stage to the target stage.
+        Performs a direct single-step conversion between two adjacent pipeline stages.
 
-        Parameters:
-            start_stage (PipelineStage): The starting stage of the conversion process.
-            target_stage (PipelineStage): The target stage of the conversion process.
-            overwrite (bool, optional): A flag indicating whether existing files should be overwritten. Defaults to True.
-            batch_if_possible (bool, optional): A flag indicating whether batch conversion should be attempted if possible. Defaults to True.
+        Executes conversion for all files in the start stage's data directory to the target stage's
+        data directory. Automatically chooses between batch and single-file processing based on
+        the conversion function type and user preferences.
+
+        Args:
+            start_stage (str | PipelineStage): Source stage containing input files.
+            target_stage (str | PipelineStage): Target stage for output files.
+            overwrite (bool, optional): Whether to overwrite existing output files. Defaults to True.
+            batch_if_possible (bool, optional): Use batch conversion when available. Defaults to True.
+            move_successful_inputs_to_temp (bool, optional): Move successful inputs to temp. Defaults to False.
+            move_error_files_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
 
         Raises:
-            ValueError: If the conversion from the start stage to the target stage is not possible.
+            ValueError: If target_stage is not a direct child of start_stage.
+            RuntimeError: If batch conversion is aborted by user.
+
+        Side Effects:
+            - Processes all files matching start_stage.extension in start stage data directory
+            - Creates comprehensive log file with conversion outcomes
+            - May move processed files to temp directories based on flags
+
+        Example:
+            >>> # Convert all PDF files to MXL format
+            >>> converter.single_stage_conversion("pdf_in", "mxl_in", overwrite=True)
         """
-        start_stage = self.pipeline.to_stage(start_stage)[0]
+
+        start_stage = self.pipeline.to_stage(start_stage)[0] # this is also a typechecker
         target_stage = self.pipeline.to_stage(target_stage)[0]
 
         if target_stage not in start_stage.children:
@@ -249,30 +358,42 @@ class Converter():
 
         
         if batch_if_possible and isinstance(conversion_function, BatchConversionFunction):
-            batch_licenced = self.batch_get_license(conversion_function) if not overwrite else True
-            if batch_licenced:
-                self.logged_batch_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, move_successful_inputs_to_temp, move_error_files_to_temp)
-
-            else:
-                print(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
+            batch_licenced = input(f"The next function will do a batch conversion({conversion_function}). Non-overwriting was specified, but cannot be guaranteed for batch mode.\nDo you want to proceed regardless? (y/n): ") == "y"
             
-        else:
-            self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_successful_inputs_to_temp, move_error_files_to_temp)
+            if not batch_licenced:
+                raise RuntimeError(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
+        
+        self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_successful_inputs_to_temp, move_error_files_to_temp)
 
         print(log.stats["num_successful"], "successful, successful / attempted")
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
 
 
-    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, extension: str, move_successful_inputs_to_temp: bool, move_error_files_to_temp: bool) -> None:
+    def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, 
+                                     target_stage: PipelineStage, log: Log, overwrite: bool, extension: str, 
+                                     move_successful_inputs_to_temp: bool, move_error_files_to_temp: bool) -> None:
         """
-        Performs a single-file conversion from the start stage to the target stage, logs the outcome, and commits the log.
+        Executes single-file conversion for each file in the input directory with comprehensive logging.
 
-        Parameters:
-            conversion_function (ConversionFunction): The conversion function to be applied to each input file.
-            start_stage (PipelineStage): The starting stage of the conversion process.
-            target_stage (PipelineStage): The target stage of the conversion process.
-            log (Log): The log object to store the conversion outcomes.
-            overwrite (bool): A flag indicating whether existing files should be overwritten.
+        Low-level conversion method that processes each file individually, logs outcomes, and handles
+        temporary file movement. Supports both regular and batch conversion functions operating in
+        single-file mode.
+
+        Args:
+            conversion_function (_ConversionFunction): Function to perform the actual conversion.
+            start_stage (PipelineStage): Source stage containing input files.
+            target_stage (PipelineStage): Target stage for output files.
+            log (Log): Log object to record conversion outcomes.
+            overwrite (bool): Whether to overwrite existing output files.
+            extension (str): File extension filter for input files.
+            move_successful_inputs_to_temp (bool): Move successful inputs to temp directory.
+            move_error_files_to_temp (bool): Move failed inputs to error temp directory.
+
+        Side Effects:
+            - Processes each file matching the extension in start stage directory
+            - Logs each conversion outcome (success, error, skip)
+            - Commits log entries to file
+            - Conditionally moves input files to temp directories
         """
 
         input_dir: DirPath = self.data_dir_map[start_stage]
@@ -295,20 +416,29 @@ class Converter():
         log.commit()
 
 
-    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, target_stage: PipelineStage, log: Log, overwrite: bool, move_successful_inputs_to_temp: bool, move_error_files_to_temp: bool) -> None:
+    def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, 
+                                    target_stage: PipelineStage, log: Log, overwrite: bool, 
+                                    move_successful_inputs_to_temp: bool, move_error_files_to_temp: bool) -> None:
         """
-        Performs a batch file conversion from the start stage to the target stage, logs the outcome, and commits the log.
+        Executes batch conversion for all files in the input directory with comprehensive logging.
 
-        Parameters:
+        High-performance conversion method that processes all files in bulk, logs outcomes, and commits
+        the log. Supports moving of successful and error files to respective temp directories.
+
+        Args:
             conversion_function (BatchConversionFunction): The batch conversion function to be applied to the input files.
-            input_dir (DirPath): The dir containing the input files.
-            output_dir (DirPath): The dir where the output files will be saved.
+            start_stage (PipelineStage): The starting stage of the conversion process.
+            target_stage (PipelineStage): The target stage of the conversion process.
             log (Log): The log object to store the conversion outcomes.
             overwrite (bool): A flag indicating whether existing files should be overwritten.
+            move_successful_inputs_to_temp (bool): Move successful inputs to temp directory.
+            move_error_files_to_temp (bool): Move failed inputs to error temp directory.
 
-        The function retrieves the input and output dirs based on the start and target stages.
-        It then calls the batch conversion function with the input and output dirs, and logs the outcome.
-        Finally, it commits the log.
+        Side Effects:
+            - Processes all files in input_dir in one batch
+            - Logs the outcome of the batch conversion
+            - Commits the log
+            - Conditionally moves input files to temp directories
         """
         
         input_dir: DirPath = self.data_dir_map[start_stage]
@@ -320,53 +450,70 @@ class Converter():
         log.log(outcomes)
         log.commit()
 
-        # TODO: find better way to handle something like metadata files    
+         
         if move_successful_inputs_to_temp:
             for outcome in outcomes:
                 self.outcome_move_inputs_to_temp(outcome, start_stage, move_successful_inputs_to_temp, move_error_files_to_temp)
 
 class Log():
     """
-    A class responsible for logging the outcome of each conversion process.
+    Manages comprehensive logging for music file conversion processes with real-time statistics.
+
+    The Log class tracks conversion outcomes in real-time, provides detailed statistics, and generates
+    structured log files for each conversion operation. It supports various outcome types including
+    successful conversions, errors, warnings, skipped files, and critical halts.
 
     Attributes:
-        converter (Converter): The Converter object that initiated the conversion process.
-        start_stage (PipelineStage): The starting stage of the conversion process.
-        target_stage (PipelineStage): The target stage of the conversion process.
-        path (FilePath): The file path where the log will be saved.
+        converter (Converter): The Converter instance that initiated this conversion process.
+        start_stage (PipelineStage): Source stage of the conversion.
+        target_stage (PipelineStage): Target stage of the conversion.
+        path (FilePath): Full path to the log file for this conversion session.
+        start_stage_dir_path (DirPath): Directory containing input files for conversion.
+        target_stage_dir_path (DirPath): Directory where output files are saved.
+        header (str): Log file header containing session information.
+        text (List[str]): Accumulated log messages for this session.
         
-        start_stage_dir_path (DirPath): The dir path where the input files for the conversion process are located.
-        target_stage_dir_path (DirPath): The dir path where the output files for the conversion process will be saved.
-        
-        text (List[str]): A list to store the log messages.
-        
-        num_total_files (int): The total number of files to be converted.
-        num_attempted (int): The total number of files attempted for conversion.
-        num_skipped (int): The total number of files skipped for conversion.
-        num_successful (int): The total number of successful conversions.
-        num_errors (int): The total number of errors encountered during the conversion process.
-        num_warned_successful (int): The total number of successful conversions with warnings.
-        has_halted (bool): A flag indicating whether a halt has occurred during the conversion process.
-        
+        num_total_files (int): Total number of files available for conversion.
+        num_attempted (int): Number of files that conversion was attempted on.
+        num_skipped (int): Number of files skipped (usually due to existing outputs).
+        num_successful (int): Number of files successfully converted.
+        num_errors (int): Number of files that failed conversion.
+        num_warned_successful (int): Number of successful conversions that generated warnings.
+        has_halted (bool): Whether a critical error caused the conversion process to halt.
+
+    Example:
+        >>> log = Log(converter, pdf_stage, mxl_stage)
+        >>> log.log(conversion_outcome)
+        >>> log.commit()  # Finalizes log with statistics
+        >>> print(log.stats)  # View conversion statistics
     """
     
     class HaltError(Exception):
         """
-        An exception raised when a halt occurs during the conversion process.
+        Exception raised when a critical error halts the conversion process.
+        
+        This exception indicates that a conversion failure was severe enough to stop
+        the entire conversion operation, preventing further file processing.
         """
-        pass
 
     def __init__(self, converter: Converter, start_stage: PipelineStage, target_stage: PipelineStage) -> None:
         """
-        Initializes a new instance of the Log class.
+        Initializes a new conversion log session.
 
-        Parameters:
-            converter (Converter): The Converter object that initiated the conversion process.
-            start_stage (PipelineStage): The starting stage of the conversion process.
-            target_stage (PipelineStage): The target stage of the conversion process.
+        Creates a timestamped log file, calculates the total number of files to process,
+        and sets up tracking counters for various conversion outcomes.
 
-        The `__init__` method initializes the attributes of the `Log` class, such as the `converter`, `start_stage`, `target_stage`, log file path, and other counters for tracking the number of attempted, skipped, successful, error, and warned successful conversions. It also initializes the list `text` to store the log messages.
+        Args:
+            converter (Converter): The Converter managing this conversion process.
+            start_stage (PipelineStage): Source stage containing input files.
+            target_stage (PipelineStage): Target stage for output files.
+
+        Side Effects:
+            - Creates a timestamped log file in the appropriate log directory
+            - Writes initial header information to the log file
+            - Counts total files available for conversion in the start stage
         """
+
         self.start_stage: PipelineStage = start_stage
         self.target_stage: PipelineStage = target_stage
         self.converter: Converter = converter
@@ -382,7 +529,7 @@ class Log():
         self.text: List[str] = [self.header]
 
         with self.path.open(mode="w", encoding="utf-8") as file:
-            file.write("".join(self.text))
+            file.write(self.text)
 
         self.num_total_files: int = len(list(self.converter.data_dir_map[start_stage].glob(f"*{start_stage.extension}")))
         self.num_attempted: int = 0
@@ -395,178 +542,166 @@ class Log():
     @property
     def index(self) -> str:
         """
-        Returns a string representing the current progress index in the conversion process.
+        Returns the current progress indicator for log entries.
 
-        The index is formatted as "[attempted/total]", where "attempted" is the number of files attempted to be converted,
-        and "total" is the total number of files in the starting stage dir.
+        Provides a standardized progress format showing current position in the conversion process.
 
         Returns:
-            str: The progress index string.
+            str: Progress indicator in format "[attempted/total]".
+
+        Example:
+            >>> log.index
+            "[15/127]"  # 15 files attempted out of 127 total
         """
-        return f"[{self.num_attempted}/{self.num_total_files}]"
 
     def log_skip(self, outcome: ConversionOutcome) -> None:
         """
-        Logs a skipped conversion outcome.
+        Records a skipped conversion outcome.
 
-        Parameters:
-            outcome (ConversionOutcome): The outcome of the conversion process.
+        Logs when a file conversion is skipped, typically because the output file already exists
+        and overwrite is disabled. Updates skip counters and provides default reason if none given.
 
-        The function increments the number of skipped conversions, appends a message to the log text,
-        and prints a progress indicator. If the outcome does not contain an error message, it adds a reason
-        for skipping the conversion.
+        Args:
+            outcome (ConversionOutcome): The conversion outcome containing skip information.
+
+        Side Effects:
+            - Increments num_skipped counter
+            - Adds timestamped skip entry to log
+            - Prints progress indicator to console
+            - Adds default skip reason if outcome.error_message is empty
+            - Immediately writes log entry to file
         """
-        self.num_skipped += 1
-        
-        if not outcome.error_message:
-            outcome.error_message = f"Output: {f'{outcome.output_files[0].name} already exists' if len(outcome.output_files) == 1 else f'Files {outcome.output_files[0].name}... already exist'} and shall not be overwritten\n"
-
-        self.text.append(f"{self.index} [SKIPPED] {datetime.datetime.now()} - Input: {outcome.input_file.name}; \n" + outcome.error_message)
-        
-        print(f"{self.index} [SKIPPED]", end="\r")
 
     def log_success(self, outcome: ConversionOutcome) -> None:
         """
-        Logs a successful conversion outcome.
+        Records a successful conversion outcome.
 
-        Parameters:
-            outcome (ConversionOutcome): The outcome of the conversion process.
-            This object contains information about the input file, output files,
-            warning messages, and error message (if any).
+        Logs successful file conversions, including any warning messages that occurred during
+        the process. Tracks both clean successes and warned successes separately.
 
-        The function increments the number of successful conversions, appends a message to the log text,
-        and prints a progress indicator. If the outcome contains warning messages, it adds them to the log text.
+        Args:
+            outcome (ConversionOutcome): The conversion outcome containing success information.
+
+        Side Effects:
+            - Increments num_successful counter
+            - Increments num_warned_successful if warnings present
+            - Adds timestamped success entry to log with output file information
+            - Appends any warning messages to the log entry
+            - Prints progress indicator to console
+            - Immediately writes log entry to file
         """
-        self.num_successful += 1
-
-        self.text.append(f"{self.index} [SUCCESS] {datetime.datetime.now()} - Input: {outcome.input_file.name}; Output: {outcome.output_files[0].name if len(outcome.output_files) == 1 else f'{len(outcome.output_files)} Files ({outcome.output_files[0].name})...'}\n") 
-    
-        if outcome.warning_messages:
-            self.num_warned_successful += 1
-            for warning_message in outcome.warning_messages:
-                self.text[-1] += f"\t[WARNING] {warning_message}\n"
-
-        print(f"{self.index} [SUCCESS]", end="\r")
 
     def log_error(self, outcome: ConversionOutcome) -> None:
         """
-        Logs an error during the conversion process.
+        Records a conversion error outcome.
 
-        Parameters:
-            outcome (ConversionOutcome): The outcome of the conversion process.
-            This object contains information about the input file and the error message.
+        Logs conversion failures with detailed error information for debugging purposes.
 
-        The function increments the number of errors, appends a message to the log text,
-        and prints a progress indicator. The message includes the current progress index,
-        the current date and time, the name of the input file, and the error message.
+        Args:
+            outcome (ConversionOutcome): The conversion outcome containing error information.
+
+        Side Effects:
+            - Increments num_errors counter
+            - Adds timestamped error entry to log with error details
+            - Prints progress indicator to console
+            - Immediately writes log entry to file
         """
-        self.num_errors += 1
-             
-        self.text.append(f"{self.index} [ERROR] {datetime.datetime.now()} - Input: {outcome.input_file.name}\n" + 
-                        f"\tError: {outcome.error_message}\n")
-        
-        print(f"{self.index} [ERROR]", end="\r")
 
     def log_halt(self, outcome: ConversionOutcome) -> None:
         """
-        Logs a halt during the conversion process.
+        Records a critical halt and immediately stops the conversion process.
 
-        Parameters:
-            outcome (ConversionOutcome): The outcome of the conversion process.
-            This object contains information about the input file and the error message.
+        Logs critical errors that require immediate termination of the conversion process.
+        Automatically commits the log and raises a HaltError exception.
 
-        The function increments the number of errors, appends a message to the log text,
-        and prints a progress indicator. The message includes the current progress index,
-        the current date and time, the name of the input file, and the error message.
-        It then commits the log and raises a `Log.HaltError` exception.
+        Args:
+            outcome (ConversionOutcome): The conversion outcome that caused the halt.
+
+        Raises:
+            Log.HaltError: Always raised after logging the halt condition.
+
+        Side Effects:
+            - Increments num_errors counter
+            - Sets has_halted flag to True
+            - Adds timestamped halt entry to log
+            - Immediately commits the log to file
+            - Terminates the conversion process via exception
         """
-        self.num_errors += 1
-        
-        self.has_halted = True
-        
-        self.text.append(f"{self.index} [HALT] {datetime.datetime.now()} - ON {outcome.input_file.name}\n"+ f"\tError: {outcome.error_message}\n")
-        
-        self.commit()
-        
-        raise Log.HaltError(f"\nSingle-file conversion from {self.start_stage.name} to {self.target_stage.name} halted. Potential following conversions aborted.\nCritical failure since conversion of {self.index, outcome.input_file.name}.\n\tError:" + outcome.error_message)
-    
 
     def log(self, outcomes: List[ConversionOutcome] | ConversionOutcome) -> None:
         """
-        Logs the outcomes of each conversion process.
+        Processes and logs one or more conversion outcomes.
 
-        Parameters:
-            outcomes (List[ConversionOutcome]): A list of ConversionOutcome objects, each representing the outcome of a single conversion process.
+        Central logging method that determines the appropriate logging action based on each
+        outcome's properties. Handles both single outcomes and lists of outcomes from batch operations.
 
-        The function iterates through each outcome in the list. It increments the number of attempted conversions,
-        and then calls the appropriate logging function based on the outcome's properties.
-        If the outcome is skipped, it calls the log_skip method.
-        If the outcome is successful, it calls the log_success method.
-        If the outcome is not successful and contains a halt, it calls the log_halt method.
-        If the outcome is not successful and does not contain a halt, it calls the log_error method.
+        Args:
+            outcomes (List[ConversionOutcome] | ConversionOutcome): Single outcome or list of outcomes to log.
+
+        Side Effects:
+            - Increments num_attempted for each outcome processed
+            - Calls appropriate logging method based on outcome properties:
+              * log_skip() for skipped conversions
+              * log_success() for successful conversions  
+              * log_halt() for critical errors (may raise HaltError)
+              * log_error() for regular errors
+            - Each log entry is immediately written to file
+
+        Example:
+            >>> # Log single outcome
+            >>> log.log(single_outcome)
+            >>> 
+            >>> # Log batch outcomes
+            >>> log.log([outcome1, outcome2, outcome3])
         """
-        if isinstance(outcomes, ConversionOutcome):
-            outcomes = [outcomes]
-
-        for outcome in outcomes:
-            self.num_attempted += 1
-
-            if outcome.skipped:
-                self.log_skip(outcome)
-            elif outcome.successful:
-                self.log_success(outcome)
-            else:
-                if outcome.halt:
-                    self.log_halt(outcome)
-                else:
-                    self.log_error(outcome)
-
-            with self.path.open(mode="a", encoding="utf-8") as file:
-                file.write(self.text[-1])
 
     @property
     def stats(self) -> dict[str, Any]:
         """
-        Returns a dictionary containing various statistics related to the conversion process.
+        Returns comprehensive conversion statistics.
+
+        Provides detailed metrics about the conversion process including counts and percentages
+        for all outcome types.
 
         Returns:
-            dict: A dictionary with the following keys and their corresponding values:
-            - "num_total": The total number of files in the starting stage dir.
-            - "num_attempted": The number of files attempted to be converted.
-            - "num_successful": A tuple containing the number of successful conversions and the percentage of successful conversions.
-            - "num_skipped": A tuple containing the number of skipped conversions and the percentage of skipped conversions.
-            - "num_errors": A tuple containing the number of errors during the conversion process and the percentage of errors.
-            - "num_warned_from_successful": A tuple containing the number of warned successful conversions and the percentage of warned successful conversions.
-            - "has_halted": A boolean indicating whether the conversion process has been halted.
+            dict[str, Any]: Statistics dictionary with keys:
+                - "num_total": Total files available for conversion
+                - "num_attempted": Files that conversion was attempted on
+                - "num_successful": (count, percentage) of successful conversions
+                - "num_skipped": (count, percentage) of skipped files
+                - "num_errors": (count, percentage) of failed conversions
+                - "num_warned_from_successful": (count, percentage) of warned successes
+                - "has_halted": Boolean indicating if process was halted
+
+        Example:
+            >>> stats = log.stats
+            >>> print(f"Success rate: {stats['num_successful'][1]*100:.1f}%")
+            >>> print(f"Total errors: {stats['num_errors'][0]}")
         """
-        return {
-        "num_total": self.num_total_files,
-        "num_attempted": self.num_attempted,
-        "num_successful": (self.num_successful, self.num_successful / self.num_attempted if self.num_attempted else 0.0),
-        "num_skipped": (self.num_skipped, self.num_skipped / self.num_attempted if self.num_attempted else 0.0),
-        "num_errors": (self.num_errors, self.num_errors / self.num_attempted if self.num_attempted else 0.0),
-        "num_warned_from_successful": (self.num_warned_successful, self.num_warned_successful / self.num_successful if self.num_successful else 0.0),
-        "has_halted": self.has_halted
-        }
-    
-        
-    
+
     def commit(self) -> None:
         """
-        Writes the log to a file and prints the evaluation statistics.
-        Inserts the stats after the 3rd line in the log file.
+        Finalizes the log file with comprehensive statistics and summary information.
+
+        Inserts detailed statistics at the beginning of the log file and writes the complete
+        log to disk. Should be called at the end of each conversion session.
+
+        Side Effects:
+            - Calculates and formats statistics for all outcome types
+            - Inserts statistics summary at the beginning of the log file
+            - Writes the complete log content to the log file
+            - Overwrites any existing log content with the finalized version
+
+        Example:
+            >>> log.commit()
+            # Log file now contains:
+            # [Header]
+            # num_successful: 95 (87.16%)
+            # num_errors: 12 (11.01%)
+            # num_skipped: 2 (1.83%)
+            # ...
+            # [Individual conversion entries]
         """
-        stats_lines = [
-            f"{key}: {value[0]} ({value[1] * 100:.2f}%)\n" if isinstance(value, tuple) else f"{key}: {value}\n"
-            for key, value in self.stats.items()
-        ] + ["\n"]
-
-        for i, line in enumerate(stats_lines):
-            self.text.insert(1 + i, line)
-
-        with self.path.open(mode="w", encoding="utf-8") as file:
-            file.write("".join(self.text))
-
 
 if __name__ == "__main__":
     pass

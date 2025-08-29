@@ -75,10 +75,6 @@ def enhance_pdf_resolution(input_pdf: Path, output_pdf: Path, min_dpi: int = 300
 
 # Example usage
 if __name__ == "__main__":
-    # input_pdf = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/pdf_in/p-harris-improve-your-sight-reading-3pdf_compress.pdf")
-    # output_pdf = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/pdf_in/output.pdf")
-
-    # enhance_pdf_resolution(input_pdf, output_pdf, min_dpi=1000)
     pass
 
 

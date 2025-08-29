@@ -6,26 +6,62 @@ from tokeniser.tokeniser import MyTokeniser
 import json, constants as constants
 
 class MyTokenDataset(Dataset):
+    """
+    PyTorch Dataset for loading and processing tokenized music files.
+    
+    This dataset handles JSON files containing tokenized musical sequences from MyTokeniser,
+    providing proper sequence formatting with BOS/EOS tokens and label alignment for
+    causal language modeling training.
+    
+    Key features:
+    - Validates tokenizer compatibility via hash matching
+    - Filters sequences by maximum length constraints
+    - Adds BOS/EOS tokens automatically
+    - Masks metadata tokens in labels (sets to -100)
+    - Optional sorting by sequence length for efficient batching
+    - Proper label alignment for causal language modeling
+    
+    The dataset expects JSON files with the structure:
+    {
+        "input_ids": [token_ids...],
+        "labels": [label_ids...], 
+        "tokenizer_hash": "...",
+        "metadata": {...}
+    }
+    
+    Args:
+        files_paths: Sequence of paths to JSON files containing tokenized data
+        tokeniser: MyTokeniser instance used to generate the token files
+        max_sequence_length: Maximum allowed sequence length (includes BOS/EOS)
+        bos_token_id: Token ID for beginning of sequence marker
+        eos_token_id: Token ID for end of sequence marker  
+        pad_token_id: Token ID for padding (stored but not used in this dataset)
+        sort_by_length: Whether to sort files by sequence length for efficient batching
+        
+    Raises:
+        TypeError: If tokeniser is not a MyTokeniser instance
+        ValueError: If no compatible files are found after filtering
+        
+    Note:
+        - Only loads files with matching tokenizer hash for compatibility
+        - Sequences exceeding max_sequence_length (minus 2 for BOS/EOS) are filtered out
+        - Labels are padded with -100 for metadata tokens and BOS/EOS to exclude from loss
+        - Sorting by length reduces padding waste during batch training
+        
+    Example:
+        >>> dataset = MyTokenDataset(
+        ...     files_paths=Path("tokens").glob("*.json"),
+        ...     tokeniser=my_tokenizer,
+        ...     max_sequence_length=512,
+        ...     bos_token_id=0,
+        ...     eos_token_id=1,
+        ...     pad_token_id=2
+        ... )
+        >>> print(f"Dataset size: {len(dataset)}")
+        >>> sample = dataset[0]  # Returns dict with 'input_ids' and 'labels' tensors
+    """
+    
     def __init__(self, files_paths: Sequence[Path], tokeniser: MyTokeniser, max_sequence_length: int, bos_token_id: int, eos_token_id: int, pad_token_id: int, sort_by_length: bool = True):
-        """Dataset for tokenised files from a MyTokeniser.
-
-        :param files_paths: Paths to the JSON files containing tokenised data.
-        :type files_paths: Sequence[Path]
-        :param tokeniser: Instance of MyTokeniser used for encoding the data.
-        :type tokeniser: MyTokeniser
-        :param max_sequence_length: Maximum sequence length for the input IDs.
-        :type max_sequence_length: int
-        :param bos_token_id: Beginning of sequence token ID.
-        :type bos_token_id: int
-        :param eos_token_id: End of sequence token ID.
-        :type eos_token_id: int
-        :param pad_token_id: Padding token ID.
-        :type pad_token_id: int
-        :param sort_by_length: Whether to sort the dataset by sequence length.
-        :type sort_by_length: bool
-        :raises TypeError: If the tokeniser is not an instance of MyTokeniser.
-        :raises ValueError: If no valid files are found.
-        """
         if not isinstance(tokeniser, MyTokeniser):
             raise TypeError(f"Expected tokeniser to be MyTokeniser (thats what this dataloader is designed for), got {type(tokeniser)}")
 
@@ -44,9 +80,7 @@ class MyTokenDataset(Dataset):
             raise ValueError(f"No files found with matching given tokeniser hash {self.tokeniser.hexa_hash}. "
                              f"Retokenise the data with your given tokeniser.")
 
-
         print(f"Filtered dataset size: {len(self.files_paths)} files (from given {len(files_paths)}) with matching tokeniser hash {self.tokeniser.hexa_hash} and length <= {max_sequence_length} (see 'max_position_embeddings' specified in model config)")
-
 
         if sort_by_length:
             # Sort files by length of input_ids so that when sequences in a batch have minimal length difference and thus minimal padding 
@@ -83,6 +117,6 @@ class MyTokenDataset(Dataset):
 
             # print(f"Processed file: {res}")
             return res
-            
 
-                
+
+

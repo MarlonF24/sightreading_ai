@@ -31,6 +31,7 @@ MYTOKENISER_BASE_CONFIG: dict[str, Any] = {
             # "chord_tokens_with_root_note": True,
             # "chord_unknown": (2, 4),
             "one_token_stream_for_programs": True,
+            "use_pitchdrum_tokens": False,
             **MODIFYABLE_TOKENISER_CONFIG_FIELDS
         }
 
@@ -50,7 +51,7 @@ INTERVAL_COMPL_TOKEN_PREFIX: str = "Int_"
 
 
 # BPE 
-BPE_VOCAB_SCALE_FACTOR: int = 2
+BPE_VOCAB_SCALE_FACTOR: int = 3
 
 # Metadata
 DENSITY_COMPLEXITY_WEIGHT: int = 1
