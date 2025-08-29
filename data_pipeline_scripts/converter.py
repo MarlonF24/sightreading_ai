@@ -272,8 +272,8 @@ class Converter():
             
 
     def multi_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, 
-                              overwrite: bool = True, batch_if_possible: bool = True, 
-                              move_successful_inputs_to_temp: bool = False, move_error_files_to_temp: bool = False) -> None:
+                              overwrite: bool = True, batch_if_possible: bool = False, 
+                              move_successful_inputs_to_temp: bool = False, move_error_inputs_to_temp: bool = False) -> None:
         """
         Performs a complete multi-step conversion between two potentially distant pipeline stages.
 
@@ -285,9 +285,9 @@ class Converter():
             start_stage (str | PipelineStage): Starting stage for the conversion (source format).
             target_stage (str | PipelineStage): Target stage for the conversion (destination format).
             overwrite (bool, optional): Whether to overwrite existing files. Defaults to True.
-            batch_if_possible (bool, optional): Use batch conversion when available. Defaults to True.
+            batch_if_possible (bool, optional): Use batch conversion when available. Defaults to False.
             move_successful_inputs_to_temp (bool, optional): Move successful inputs to temp. Defaults to False.
-            move_error_files_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
+            move_error_inputs_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
 
         Side Effects:
             - Executes each step in the conversion route via single_stage_conversion()
@@ -310,13 +310,13 @@ class Converter():
         current_start_stage = start_stage
 
         for current_target_stage in route[1:]:
-            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, move_successful_inputs_to_temp)
+            self.single_stage_conversion(current_start_stage, current_target_stage, overwrite, batch_if_possible, move_successful_inputs_to_temp, move_error_inputs_to_temp)
             current_start_stage = current_target_stage
 
 
     def single_stage_conversion(self, start_stage: str | PipelineStage, target_stage: str | PipelineStage, 
-                               overwrite: bool = True, batch_if_possible: bool = True, 
-                               move_successful_inputs_to_temp: bool = False, move_error_files_to_temp: bool = False) -> None:
+                               overwrite: bool = True, batch_if_possible: bool = False, 
+                               move_successful_inputs_to_temp: bool = False, move_error_inputs_to_temp: bool = False) -> None:
         """
         Performs a direct single-step conversion between two adjacent pipeline stages.
 
@@ -330,7 +330,7 @@ class Converter():
             overwrite (bool, optional): Whether to overwrite existing output files. Defaults to True.
             batch_if_possible (bool, optional): Use batch conversion when available. Defaults to True.
             move_successful_inputs_to_temp (bool, optional): Move successful inputs to temp. Defaults to False.
-            move_error_files_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
+            move_error_inputs_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
 
         Raises:
             ValueError: If target_stage is not a direct child of start_stage.
@@ -363,7 +363,7 @@ class Converter():
             if not batch_licenced:
                 raise RuntimeError(f"Conversion from {start_stage.name} to {target_stage.name} aborted.\n")
         
-        self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_successful_inputs_to_temp, move_error_files_to_temp)
+        self.logged_single_file_conversion(conversion_function, start_stage, target_stage, log, overwrite, start_stage.extension, move_successful_inputs_to_temp, move_error_inputs_to_temp)
 
         print(log.stats["num_successful"], "successful, successful / attempted")
         print(f"\n\nConversion from {start_stage.name} to {target_stage.name} completed. Log saved as {log.path.name} in {log.path.parent}.\n")
@@ -371,7 +371,7 @@ class Converter():
 
     def logged_single_file_conversion(self, conversion_function: _ConversionFunction, start_stage: PipelineStage, 
                                      target_stage: PipelineStage, log: Log, overwrite: bool, extension: str, 
-                                     move_successful_inputs_to_temp: bool, move_error_files_to_temp: bool) -> None:
+                                     move_successful_inputs_to_temp: bool, move_error_inputs_to_temp: bool) -> None:
         """
         Executes single-file conversion for each file in the input directory with comprehensive logging.
 
@@ -387,7 +387,7 @@ class Converter():
             overwrite (bool): Whether to overwrite existing output files.
             extension (str): File extension filter for input files.
             move_successful_inputs_to_temp (bool): Move successful inputs to temp directory.
-            move_error_files_to_temp (bool): Move failed inputs to error temp directory.
+            move_error_inputs_to_temp (bool): Move failed inputs to error temp directory.
 
         Side Effects:
             - Processes each file matching the extension in start stage directory
@@ -411,14 +411,14 @@ class Converter():
             log.log(outcome)
 
             if move_successful_inputs_to_temp:
-                self.outcome_move_inputs_to_temp(outcome, start_stage, move_successful_inputs_to_temp, move_error_files_to_temp)
+                self.outcome_move_inputs_to_temp(outcome, start_stage, move_successful_inputs_to_temp, move_error_inputs_to_temp)
 
         log.commit()
 
 
     def logged_batch_file_conversion(self, conversion_function: BatchConversionFunction, start_stage: PipelineStage, 
                                     target_stage: PipelineStage, log: Log, overwrite: bool, 
-                                    move_successful_inputs_to_temp: bool, move_error_files_to_temp: bool) -> None:
+                                    move_successful_inputs_to_temp: bool, move_error_inputs_to_temp: bool) -> None:
         """
         Executes batch conversion for all files in the input directory with comprehensive logging.
 
@@ -432,7 +432,7 @@ class Converter():
             log (Log): The log object to store the conversion outcomes.
             overwrite (bool): A flag indicating whether existing files should be overwritten.
             move_successful_inputs_to_temp (bool): Move successful inputs to temp directory.
-            move_error_files_to_temp (bool): Move failed inputs to error temp directory.
+            move_error_inputs_to_temp (bool): Move failed inputs to error temp directory.
 
         Side Effects:
             - Processes all files in input_dir in one batch
@@ -453,7 +453,7 @@ class Converter():
          
         if move_successful_inputs_to_temp:
             for outcome in outcomes:
-                self.outcome_move_inputs_to_temp(outcome, start_stage, move_successful_inputs_to_temp, move_error_files_to_temp)
+                self.outcome_move_inputs_to_temp(outcome, start_stage, move_successful_inputs_to_temp, move_error_inputs_to_temp)
 
 class Log():
     """
