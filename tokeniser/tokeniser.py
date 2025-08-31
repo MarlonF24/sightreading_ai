@@ -411,6 +411,30 @@ class MyTokeniser(miditok.REMI):
             self.remove_unecessary_program_tokens_from_vocab()
             self.stuff_vocab_index_holes()
 
+    def add_complexities_to_vocab(self) -> None:
+        for i in range(1, 11):
+            self.add_to_vocab(constants.tokeniser_constants.DENSITY_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser_constants.DURATION_COMPL_TOKEN_PREFIX + str(i))
+            self.add_to_vocab(constants.tokeniser_constants.INTERVAL_COMPL_TOKEN_PREFIX + str(i))
+
+
+    def add_bars_to_vocab(self) -> None:
+        for i in range(1, self.config.additional_params[constants.tokeniser_constants.MAX_BARS_FIELD] + 1):
+            self.add_to_vocab(constants.tokeniser_constants.BAR_TOKEN_PREFIX + str(i))
+
+
+    def stuff_vocab_index_holes(self):
+        for i, token in enumerate(self.vocab):
+            self.vocab[token] = i
+
+
+    def remove_unecessary_program_tokens_from_vocab(self):
+        for token in self.vocab.copy():
+            if token.startswith("Program"):
+                if token.endswith("0") or token.endswith("2"):
+                    continue
+                del self.vocab[token]
+
     def encode_with_metadata(self, input_file: Path, tokenised_metadata: Metadata | Metadata.TokenisedMetadata | dict) -> dict:
         """
         Encode MIDI file with metadata conditioning tokens.
