@@ -404,9 +404,9 @@ def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool,
         raise TypeError("Expected pdf_preprocess to be a boolean")
     
 
-    musicxml_out = PipelineStage("musicxml_out", constants.MUSICXML_EXTENSION, {})
+    mxl_out = PipelineStage("mxl_out", constants.MXL_EXTENSION, {})
 
-    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {musicxml_out: conversion_functions.midi_to_mxl(transpose_to_desired_key=True)}, extra_dirs=[(constants.data_pipeline_constants.METADATA_DIR_NAME, constants.METADATA_EXTENSION)])
+    midi_out = PipelineStage("midi_out", constants.MIDI_EXTENSION, {mxl_out: conversion_functions.midi_to_mxl(transpose_to_desired_key=True)}, extra_dirs=[(constants.data_pipeline_constants.METADATA_DIR_NAME, constants.METADATA_EXTENSION)])
 
     tokens_out = PipelineStage("tokens_out", constants.TOKENS_EXTENSION, {midi_out: conversion_functions.tokens_to_midi(tokeniser)})
 
@@ -427,7 +427,7 @@ def construct_music_pipeline(tokeniser: MyTokeniser, pdf_preprocess: bool,
 
     pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
 
-    pipeline = Pipeline(musicxml_out, midi_out, tokens_out, tokens_in, midi_in, mxl_in, pdf_in, midi_start)
+    pipeline = Pipeline(mxl_out, midi_out, tokens_out, tokens_in, midi_in, mxl_in, pdf_in, midi_start)
 
     if pdf_preprocess:
         pipeline.add_stages(pdf_preprocessed)

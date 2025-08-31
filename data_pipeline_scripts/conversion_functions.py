@@ -178,7 +178,9 @@ class Generics:
             For input file "song.pdf", this might return:
             ["song.mxl", "song_001.midi", "song_part1.json"]
         """
-        return [file for file in output_dir.glob(f"{input_file.stem}(_*)?.*")] # either find same stem with different extension or _<suffix>
+        import re
+
+        return [file for file in output_dir.glob(f"{input_file.stem}.*") if re.match(rf"{input_file.stem}(_\d+)?", file.name)] # either find same stem with different extension or _<digits>
 
     @staticmethod
     def same_name_skip(input_file: FilePath, output_dir: DirPath) -> Optional[ConversionOutcome]:
@@ -731,6 +733,12 @@ class to_midi(SingleFileConversionFunction):
         self.split = split
         self.transpose = transpose
 
+    def clean_up(self, input_file, output_dir):
+        pass
+
+    def skip_single_file(self, input_file, output_dir):
+        return Generics.same_name_skip(input_file, output_dir)
+
     import music21
     @staticmethod
     def refurbish_score(score: music21.stream.Score, split: bool) -> list[music21.stream.Score]:
@@ -958,7 +966,7 @@ class midi_to_tokens(SingleFileConversionFunction):
         >>> outcome = converter.conversion(midi_file, output_dir)
     """
     
-    def __init__(self, tokeniser: MyTokeniser):
+    def __init__(self, tokeniser: MyTokeniser, split: bool = True):
         """
         Initialize the MIDI to tokens converter.
         
@@ -966,6 +974,7 @@ class midi_to_tokens(SingleFileConversionFunction):
             tokeniser: Tokenizer instance for encoding MIDI files into token sequences
         """
         self.tokeniser = tokeniser
+        self.split = split
 
     def skip_single_file(self, input_file: FilePath, output_dir: DirPath) -> Optional[ConversionOutcome]:
         import json
@@ -981,24 +990,17 @@ class midi_to_tokens(SingleFileConversionFunction):
         return None
 
     def conversion(self, input_file: FilePath, output_dir: DirPath) -> ConversionOutcome:    
-        import json, shutil, music21
+        import json, shutil
 
         with input_file.parent.joinpath(constants.data_pipeline_constants.METADATA_DIR_NAME, input_file.stem + constants.METADATA_EXTENSION).open() as f:
             metadata = json.load(f)
-        
-        score = music21.converter.parse(input_file)
-        scores = to_midi.refurbish_score(score, split=self.split)
-
-        for i, score in enumerate(scores, 1):
-            score.write("midi", fp=input_file.parent / f"{input_file.stem}_{i}.midi")
-
 
         if t := Generics.invalid_metadata_skip(input_file, metadata, self.tokeniser):
             return t
 
         try: 
             jso = self.tokeniser.encode_with_metadata(input_file, metadata)
-            
+
         except Exception as e:
             return ConversionOutcome(
                 input_file=input_file,
@@ -1006,23 +1008,21 @@ class midi_to_tokens(SingleFileConversionFunction):
                 error_message=Generics.str_error(e),
                 halt=False
             )
-        
+
         else:
-            # TODO: Implement terminal width detection properly
-            # Get terminal width (fallback to 80 if not available)
-            try:
-                terminal_width = shutil.get_terminal_size().columns
-            except (AttributeError, OSError):
-                terminal_width = 80
-            
+            terminal_width = shutil.get_terminal_size().columns
+
             # Calculate how many lines the filename will take
-            lines_needed = (len(input_file.name) + len("") + terminal_width - 1) // terminal_width  # Ceiling division
-            
+            lines_needed = 1 + ((len(str(input_file)) + len("[read_file(fs::path)] Input path:")) // terminal_width)  # Ceiling division
+
+            if lines_needed > 1:
+                pass
+
             # Clear the calculated number of lines
-            Generics.clear_n_terminal_lines(lines_needed)
-            
+            Generics.clear_n_terminal_lines(lines_needed + 1) # + 1 for extra line: "[read_file(fs::path)] _wfopen_s returned: 0" 
+
             output_path = output_dir.joinpath(input_file.stem + constants.TOKENS_EXTENSION)
-            
+
             with output_path.open("w", encoding="utf-8") as f:
                 json.dump(jso, f)
 
@@ -1109,9 +1109,8 @@ class tokens_to_midi(SingleFileConversionFunction):
             
             if "Bar_None" not in tok_seq.tokens:
                 raise ValueError("The token sequence does not contain a Bar_None token. This is required for the conversion to MIDI.")
-            print(tok_seq.tokens)
-            
-            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[tokens_to_midi.metadata_length + 1:])
+
+            clean_seq = miditok.TokSequence(tokens=tok_seq.tokens[1:])
 
             output_path = output_dir / (input_file.stem + ".midi")
 

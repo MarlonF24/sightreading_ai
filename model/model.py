@@ -146,7 +146,7 @@ class MyModel(GPT2LMHeadModel):
             load = False
 
         if load:
-            print("Loading model with given tokeniser...")
+            print("Loading model with given tokeniser...\n")
             return cls.from_pretrained(cls.TRAINING_DIR), True
         else:
             print("Initialising new model with given tokeniser.")
@@ -341,7 +341,7 @@ class MyModel(GPT2LMHeadModel):
 
         # Create dataset
         dataset = MyTokenDataset(
-            files_paths=tokens_dir.glob(f"*{constants.TOKENS_EXTENSION}"),
+            files_paths=list(tokens_dir.glob(f"*{constants.TOKENS_EXTENSION}")),
             tokeniser=tokeniser,
             max_sequence_length=model.config.n_positions, 
             bos_token_id=tokeniser.vocab[tokeniser.bos_token],

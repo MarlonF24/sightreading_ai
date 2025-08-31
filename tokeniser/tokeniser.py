@@ -48,7 +48,7 @@ class Metadata:
         """
         instrument_lists = [list(part.getInstruments()) for part in self.score.parts]
 
-        if len(temp := self.score.parts) != 2 or any(not isinstance(instrument, (music21.instrument.Piano, music21.instrument.ElectricPiano)) for instrument_list in instrument_lists for instrument in instrument_list):
+        if (temp := len(self.score.parts)) != 2 or any(not isinstance(instrument, (music21.instrument.Piano, music21.instrument.ElectricPiano)) for instrument_list in instrument_lists for instrument in instrument_list):
             raise ValueError(f"Metadata expects scores with two piano staves (RH and LH), got {temp} staves with instruments {instrument_lists}.")
 
         self.time_signatures
@@ -431,7 +431,7 @@ class MyTokeniser(miditok.REMI):
     def remove_unecessary_program_tokens_from_vocab(self):
         for token in self.vocab.copy():
             if token.startswith("Program"):
-                if token.endswith("0") or token.endswith("2"):
+                if token in ["Program_0", "Program_2"]: 
                     continue
                 del self.vocab[token]
 

@@ -207,7 +207,7 @@ class Converter():
                     if (temp := self.data_dir_map[stage] / folder / (outcome.input_file.stem + extension)).exists():
                         self.move_file(temp, self.error_temp_dir_map[stage] / folder)
 
-    def move_stage_data_to_temp(self, to_error_temp: bool, *stages: str | PipelineStage) -> None:
+    def move_stage_data_to_temp(self, *stages: str | PipelineStage, to_error_temp: bool = False) -> None:
         """
         Moves all data files from specified stages to their temporary directories.
 
@@ -529,7 +529,7 @@ class Log():
         self.text: List[str] = [self.header]
 
         with self.path.open(mode="w", encoding="utf-8") as file:
-            file.write(self.text)
+            file.write(self.text[0])
 
         self.num_total_files: int = len(list(self.converter.data_dir_map[start_stage].glob(f"*{start_stage.extension}")))
         self.num_attempted: int = 0
@@ -553,7 +553,9 @@ class Log():
             >>> log.index
             "[15/127]"  # 15 files attempted out of 127 total
         """
-
+        return f"[{self.num_attempted}/{self.num_total_files}]"
+    
+    
     def log_skip(self, outcome: ConversionOutcome) -> None:
         """
         Records a skipped conversion outcome.
@@ -571,6 +573,15 @@ class Log():
             - Adds default skip reason if outcome.error_message is empty
             - Immediately writes log entry to file
         """
+        self.num_skipped += 1
+        
+        if not outcome.error_message:
+            outcome.error_message = f"Output: {f'{outcome.output_files[0].name} already exists' if len(outcome.output_files) == 1 else f'Files {outcome.output_files[0].name}... already exist'} and shall not be overwritten\n"
+
+
+        self.text.append(f"{self.index} [SKIPPED] {datetime.datetime.now()} - Input: {outcome.input_file.name}; \n" + outcome.error_message)
+        
+        print(f"{self.index} [SKIPPED]", end="\r")
 
     def log_success(self, outcome: ConversionOutcome) -> None:
         """
@@ -590,6 +601,17 @@ class Log():
             - Prints progress indicator to console
             - Immediately writes log entry to file
         """
+        self.num_successful += 1
+
+        self.text.append(f"{self.index} [SUCCESS] {datetime.datetime.now()} - Input: {outcome.input_file.name}; Output: {outcome.output_files[0].name if len(outcome.output_files) == 1 else f'{len(outcome.output_files)} Files ({outcome.output_files[0].name})...'}\n") 
+    
+        if outcome.warning_messages:
+            self.num_warned_successful += 1
+            for warning_message in outcome.warning_messages:
+                self.text[-1] += f"\t[WARNING] {warning_message}\n"
+
+
+        print(f"{self.index} [SUCCESS]", end="\r")
 
     def log_error(self, outcome: ConversionOutcome) -> None:
         """
@@ -606,6 +628,13 @@ class Log():
             - Prints progress indicator to console
             - Immediately writes log entry to file
         """
+
+        self.num_errors += 1
+             
+        self.text.append(f"{self.index} [ERROR] {datetime.datetime.now()} - Input: {outcome.input_file.name}\n" + 
+                        f"\tError: {outcome.error_message}\n")
+        
+        print(f"{self.index} [ERROR]", end="\r")
 
     def log_halt(self, outcome: ConversionOutcome) -> None:
         """
@@ -627,6 +656,16 @@ class Log():
             - Immediately commits the log to file
             - Terminates the conversion process via exception
         """
+        self.num_errors += 1
+        
+        self.has_halted = True
+        
+        self.text.append(f"{self.index} [HALT] {datetime.datetime.now()} - ON {outcome.input_file.name}\n"+ f"\tError: {outcome.error_message}\n")
+        
+        self.commit()
+        
+        raise Log.HaltError(f"\nSingle-file conversion from {self.start_stage.name} to {self.target_stage.name} halted. Potential following conversions aborted.\nCritical failure since conversion of {self.index, outcome.input_file.name}.\n\tError:" + outcome.error_message)
+
 
     def log(self, outcomes: List[ConversionOutcome] | ConversionOutcome) -> None:
         """
@@ -654,6 +693,24 @@ class Log():
             >>> # Log batch outcomes
             >>> log.log([outcome1, outcome2, outcome3])
         """
+        if isinstance(outcomes, ConversionOutcome):
+            outcomes = [outcomes]
+        
+        for outcome in outcomes:
+            self.num_attempted += 1
+
+            if outcome.skipped:
+                    self.log_skip(outcome)
+            elif outcome.successful:
+                self.log_success(outcome)
+            else:
+                if outcome.halt:
+                    self.log_halt(outcome)
+                else:
+                    self.log_error(outcome)
+
+            with self.path.open(mode="a", encoding="utf-8") as file:
+                file.write(self.text[-1])
 
     @property
     def stats(self) -> dict[str, Any]:
@@ -678,6 +735,16 @@ class Log():
             >>> print(f"Success rate: {stats['num_successful'][1]*100:.1f}%")
             >>> print(f"Total errors: {stats['num_errors'][0]}")
         """
+        return {
+        "num_total": self.num_total_files,
+        "num_attempted": self.num_attempted,
+        "num_successful": (self.num_successful, self.num_successful / self.num_attempted if self.num_attempted else 0.0),
+        "num_skipped": (self.num_skipped, self.num_skipped / self.num_attempted if self.num_attempted else 0.0),
+        "num_errors": (self.num_errors, self.num_errors / self.num_attempted if self.num_attempted else 0.0),
+        "num_warned_from_successful": (self.num_warned_successful, self.num_warned_successful / self.num_successful if self.num_successful else 0.0),
+        "has_halted": self.has_halted
+        }
+
 
     def commit(self) -> None:
         """
@@ -702,6 +769,16 @@ class Log():
             # ...
             # [Individual conversion entries]
         """
+        stats_lines = [
+            f"{key}: {value[0]} ({value[1] * 100:.2f}%)\n" if isinstance(value, tuple) else f"{key}: {value}\n"
+            for key, value in self.stats.items()
+        ] + ["\n"]
+
+        for i, line in enumerate(stats_lines):
+            self.text.insert(1 + i, line)
+
+        with self.path.open(mode="w", encoding="utf-8") as file:
+            file.write("".join(self.text))
 
 if __name__ == "__main__":
     pass
