@@ -363,7 +363,7 @@ class MyModel(GPT2LMHeadModel):
         
         training_args = TrainingArguments(
             output_dir=str(cls.TRAINING_DIR),
-            per_device_train_batch_size=2,  # gotta fix get_optimal_batch_size
+            auto_find_batch_size=True,  
             save_strategy="epoch",
             logging_dir=str(cls.TRAINING_DIR / constants.model_constants.LOGS_DIR_NAME),
             save_total_limit=3,
