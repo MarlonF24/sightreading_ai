@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os, datetime, constants as constants
-from typing import *
+from typing import * # type: ignore
 from data_pipeline_scripts.pipeline import *
 from pathlib import Path
 from data_pipeline_scripts.conversion_func_infrastructure import *
