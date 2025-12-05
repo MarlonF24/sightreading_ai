@@ -103,25 +103,22 @@ Computes musical metrics:
 
 ### Installation
 
-1. **Clone Repository**:
+1. **Install Conda**:
+   If you don't already have Conda installed, you can download and install it from the [official Conda website](https://docs.conda.io/en/latest/miniconda.html). Miniconda is recommended for a lightweight installation.
+
+2. **Clone Repository**:
     ```bash
     git clone https://github.com/MarlonF24/sightreading_ai
     cd sightreading_ai
     ```
 
-2. **Setup Conda Environment**:
-   ```bash
-   conda env create -f environment.yml
-   conda activate sightreading_ai
-   ```
-
-   Or alternatively:
+3. **Setup Conda Environment**:
    ```bash
    conda env create --prefix .conda -f environment.yml
    conda activate ./.conda
    ```
 
-3. **Configure External Tools** (if using PDF input):
+4. **Configure External Tools** (if using PDF input):
    - Install Audiveris and note the installation path
    - Install languages (English, German) in Audiveris under Tools > Install languages...
    - Update paths in `data_pipeline_constants.py` if needed
