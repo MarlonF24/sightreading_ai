@@ -282,16 +282,16 @@ class Converter():
         PDF → MXL → MIDI → Tokens that require multiple intermediate steps.
 
         Args:
-            start_stage (str | PipelineStage): Starting stage for the conversion (source format).
-            target_stage (str | PipelineStage): Target stage for the conversion (destination format).
-            overwrite (bool, optional): Whether to overwrite existing files. Defaults to True.
+            start_stage (str | PipelineStage): Starting stage for the conversion.
+            target_stage (str | PipelineStage): Target stage for the conversion.
+            overwrite (bool, optional): Whether to overwrite existing files on name collision. Defaults to True.
             batch_if_possible (bool, optional): Use batch conversion when available. Defaults to False.
             move_successful_inputs_to_temp (bool, optional): Move successful inputs to temp. Defaults to False.
             move_error_inputs_to_temp (bool, optional): Move failed inputs to error temp. Defaults to False.
 
         Side Effects:
             - Executes each step in the conversion route via single_stage_conversion()
-            - Creates log files for each conversion step
+            - Creates log files in logs/ for each conversion step
             - May move files to temp directories based on flags
 
         Example:

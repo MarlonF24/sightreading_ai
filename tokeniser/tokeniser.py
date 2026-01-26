@@ -1,4 +1,5 @@
 import music21, miditok, constants as constants, math
+import music21.meter.base
 from typing import *
 from functools import cached_property, wraps
 from pathlib import Path
@@ -68,15 +69,15 @@ class Metadata:
         return [t for tempo in tempos if (t := tempo.getQuarterBPM())] if tempos else [80] 
 
     @cached_property
-    def rh_measures(self) -> List[music21.stream.Measure]:
+    def rh_measures(self) -> Sequence[music21.stream.Measure]:
         return self.rh_part.getElementsByClass(music21.stream.Measure)
 
     @cached_property
-    def lh_measures(self) -> List[music21.stream.Measure]:
+    def lh_measures(self) -> Sequence[music21.stream.Measure]:
         return self.lh_part.getElementsByClass(music21.stream.Measure)
 
     @cached_property
-    def key_signatures(self) -> List[music21.key.KeySignature]:
+    def key_signatures(self) -> Sequence[music21.key.KeySignature]:
         # Note: this can be corruptive if the score has multple key signatures but not the first one was returned
         signatures = list(self.score.recurse().getElementsByClass(music21.key.KeySignature))
          
@@ -97,7 +98,7 @@ class Metadata:
     @cached_property
     def time_signatures(self) -> List[music21.meter.base.TimeSignature]:
         # Note: this can be corruptive if the score has multple time signatures but not the first one was returned
-        signatures = list(self.score.recurse().getElementsByClass(music21.meter.TimeSignature))
+        signatures = list(self.score.recurse().getElementsByClass(music21.meter.base.TimeSignature))
 
         # If no time signatures are found, fall back to the best time signature of each measure this can also be corruptive, as it could ignore any time signature changes
         

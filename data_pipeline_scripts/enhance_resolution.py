@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 def enhance_pdf_resolution(input_pdf: Path, output_pdf: Path, min_dpi: int = 300, conversion_dpi: int = 150):
     """
     Check PDF resolution and enhance it if below minimum DPI threshold.
@@ -43,7 +44,7 @@ def enhance_pdf_resolution(input_pdf: Path, output_pdf: Path, min_dpi: int = 300
             print(f"DPI will increase from {current_dpi} to {min_dpi}")
             
             # Upscale the image
-            img = img.resize((new_width, new_height), Image.LANCZOS)
+            img = img.resize((new_width, new_height))
             enhancement_applied = True
         else:
             print(f"Resolution {current_dpi} DPI meets minimum requirement of {min_dpi} DPI")

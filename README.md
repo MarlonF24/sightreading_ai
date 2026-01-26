@@ -103,29 +103,58 @@ Computes musical metrics:
 
 ### Installation
 
-1. **Install Conda**:
-   If you don't already have Conda installed, you can download and install it from the [official Conda website](https://docs.conda.io/en/latest/miniconda.html). Miniconda is recommended for a lightweight installation.
-
-2. **Clone Repository**:
+1. **Clone Repository**:
     ```bash
     git clone https://github.com/MarlonF24/sightreading_ai
     cd sightreading_ai
     ```
 
-3. **Setup Conda Environment**:
+2. Setup a virtual environment:
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
+    ```
+
+3. **Install PyTorch**:   
+   For **CPU-Only** Users:
+    ```bash
+    pip install torch==2.10.0
+    ```
+    For **NVIDIA GPU** Users:
+    - Find your highest compatible CUDA version by running `nvidia-smi` in your terminal (Top row, look for "CUDA Version").
+    - Find the appropriate command for your system (use the highest possible CUDA version available but still compatible with your GPU) at https://pytorch.org/get-started/locally/. You can remove the torchvision package from the command. Run the command **in your virtual environment**.  
+    Example for CUDA 13.0:
+        ```bash
+        pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+        ```
+    - You can verify the installation by running the following commands in Python:
+        ```python
+        import torch
+        print(torch.__version__)  # Check PyTorch version
+        print(torch.cuda.is_available())  # Check if CUDA is available
+        print(torch.version.cuda)  # Check the CUDA version PyTorch was built with
+        print(torch.cuda.get_device_name(0))  # Check GPU name (if available)
+        ```
+
+4. **Install dependencies**:    
+    > [!IMPORTANT]
+    > Especially when using CUDA, ensure that the PyTorch installation step is completed by now.
+    > Otherwise the torch installation might not go as desired.
+    
    ```bash
-   conda env create --prefix .conda -f environment.yml
-   conda activate ./.conda
+    pip install --upgrade pip
+    pip install -r requirements.txt
    ```
 
-4. **Configure External Tools** (if using PDF input):
+
+5. **Configure External Tools** (if using PDF input):
    - Install Audiveris and note the installation path
    - Install languages (English, German) in Audiveris under Tools > Install languages...
-   - Update paths in `data_pipeline_constants.py` if needed
+   - Update paths in `data_pipeline/data_pipeline_constants.py` (ESP. `AUDIVERIS_PATH`)
 
 ## Usage
 
-### Quick Start: Complete Training Pipeline
+### Quick Start: Complete Training Pipeline (main.py at project root)
 
 ```python
 from pathlib import Path
@@ -142,16 +171,16 @@ pipeline = construct_music_pipeline(tokeniser=tokeniser)
 converter = Converter(pipeline=pipeline)
 
 # 3. Convert to MIDI stage (from PDF or place MIDI files directly in midi_start/)
-# Option A: From PDF files
+# Option A: From PDF files, place PDF files in data_pipeline/data/pdf_in/
 converter.multi_stage_conversion("pdf_in", "midi_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=True, move_error_inputs_to_temp=True)
 
-# Option B: Place MIDI files in data_pipeline/data/midi_start/
+# Option B: From MIDI files, place MIDI files in data_pipeline/data/midi_start/
 
 converter.multi_stage_conversion("midi_start", "midi_in", batch_if_possible=False, overwrite=True, move_successful_inputs_to_temp=True, move_error_inputs_to_temp=True)
 
 # 4. Train BPE tokeniser (optional, for vocabulary compression)
 tokeniser.train_BPE(data_dir=Path("data_pipeline/data/midi_in"))
-tokeniser.save_pretrained("trained_tokeniser")
+tokeniser.save_pretrained("tokeniser/trained_tokeniser") # later load with tokeniser = MyTokeniser.from_pretrained("tokeniser/trained_tokeniser") instead of initializing new MyTokeniser() as above
 
 # 5. Convert MIDI to tokens
 converter.multi_stage_conversion("midi_in", "tokens_in", batch_if_possible=False, overwrite=True)
@@ -164,10 +193,10 @@ MyModel.train_from_tokens_dir(
 ```
 
 
-### Generating Music
+### Generating Music (main.py at project root)
 
 ```python
-from tokeniser.tokeniser import Metadata
+from tokeniser.tokeniser import Metadata, MyTokeniser
 from model.model import MyModel
 
 # Define musical parameters
@@ -183,7 +212,23 @@ metadata = Metadata.TokenisedMetadata(
 MyModel.generate_tokens(
     metadata_tokens=metadata,
     key_signature=0,  # C major/A minor
-    output_dir=Path("generated_exercises")
+    output_dir=Path("data_pipeline/data/tokens_out")
+)
+
+from data_pipeline_scripts.pipeline import construct_music_pipeline
+from data_pipeline_scripts.converter import MyConverter
+
+# Convert to mxl format
+tokeniser = MyTokeniser.from_pretrained("model/training") # load the tokeniser whose tokens the model was trained on, it was saved alognside the model in model/training
+converter = MyConverter(pipeline=construct_music_pipeline(tokeniser=tokeniser))
+
+converter.multi_stage_conversion(
+    "tokens_out", 
+    "mxl_out", 
+    batch_if_possible=False, 
+    overwrite=True, 
+    move_successful_inputs_to_temp=False, 
+    move_error_inputs_to_temp=False
 )
 ```
 

@@ -44,7 +44,7 @@ class MyModel(GPT2LMHeadModel):
     OUTPUT_DIR = OWN_DIR / constants.model_constants.OUTPUT_DIR_NAME
 
     @staticmethod
-    def build_config(max_sequence_length: int, tokeniser: MyTokeniser = MyTokeniser()) -> GPT2Config:
+    def build_config(max_sequence_length: int, tokeniser: MyTokeniser) -> GPT2Config:
         """
         Build GPT-2 configuration with tokenizer-specific parameters.
         
@@ -87,7 +87,7 @@ class MyModel(GPT2LMHeadModel):
     @classmethod
     def load_or_create(cls, tokeniser: MyTokeniser, tokens_dir: Path) -> Tuple["MyModel", bool]:
         """
-        Load existing model or create new one with intelligent fallback handling.
+        Load existing model or create new one.
         
         This method checks for existing model files and validates tokenizer compatibility.
         If a compatible model exists, it's loaded. Otherwise, a new model is created
@@ -127,7 +127,7 @@ class MyModel(GPT2LMHeadModel):
             else:
                 print(f"⚠️ Tokeniser hash mismatch. Expected: {tokeniser.hexa_hash}, Found: {loaded_tokeniser.hexa_hash}")
 
-                match input("Tokenizer hash does not match checkpoint model. Choose:\n"
+                match input("Tokeniser hash does not match checkpoint model (I.e. So far the model was trained on tokens from a differently configured tokeniser). Choose:\n"
                             "[n] Create new model with given tokeniser\n"
                             "[a] Abort training\n> ").strip().lower():
                     case "n":
@@ -151,8 +151,11 @@ class MyModel(GPT2LMHeadModel):
         else:
             print("Initialising new model with given tokeniser.")
             shutil.rmtree(cls.TRAINING_DIR, ignore_errors=True)
+
             cls.TRAINING_DIR.mkdir(parents=True, exist_ok=False)
+
             max_sequence_length = cls.analyse_sequence_lengths_for_cutoff(tokens_dir, constants.model_constants.SEQUENCE_LENGTH_CUTOFF_PERCENTILE)
+
             return cls(cls.build_config(max_sequence_length + 2, tokeniser)), False  # +2 for BOS/EOS tokens
 
     @staticmethod
@@ -290,7 +293,7 @@ class MyModel(GPT2LMHeadModel):
             
             if total_mb > target_memory_mb:
                 optimal = max(1, batch_size - 1)
-                print(f"🎯 Optimal batch size: {optimal} (estimated memory: {cls.estimate_memory_usage(sequence_length, vocab_size, n_embd, optimal)['total_mb']:.1f} MB)")
+                print(f"🎯 Optimal batch size: {optimal}")
                 return optimal
         
         print(f"🎯 Optimal batch size: 32 (max tested)")
@@ -307,7 +310,7 @@ class MyModel(GPT2LMHeadModel):
         
         Args:
             tokens_dir: Directory containing JSON token files for training
-            tokeniser: MyTokeniser instance compatible with the token files
+            tokeniser: MyTokeniser instance identical to the one used for tokenisation (hash based check)
             
         Side Effects:
             - Creates/updates model in TRAINING_DIR

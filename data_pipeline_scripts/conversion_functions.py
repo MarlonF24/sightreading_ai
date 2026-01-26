@@ -1,4 +1,3 @@
-import traceback
 from typing import *
 from pathlib import Path
 from pyparsing import cached_property
@@ -241,8 +240,9 @@ class Generics:
         output_dir: DirPath,
         command: List[str],
         interpreter: SingleFileInterpreter | BatchInterpreter,
-        batch: bool
-        ) -> ConversionOutcome | List[ConversionOutcome]: 
+        batch: bool,
+        clean_up: Optional[SingleFileCleanUp | BatchCleanUp] = None
+    ) -> ConversionOutcome | List[ConversionOutcome]:
         """
         Execute a subprocess command and interpret its results for file conversion.
         
@@ -846,7 +846,7 @@ class to_midi(SingleFileConversionFunction):
                 splits.append(len(measures))
 
             scores = [score.measures(splits[i] + 1, splits[i + 1]) for i in range(len(splits) - 1)]
-            print(f"Splitting completed.", end="\r")
+            # print(f"Splitting completed.", end="\r")
 
         for score in scores:
             Metadata(score) # this is to insert missing key or time signatures
