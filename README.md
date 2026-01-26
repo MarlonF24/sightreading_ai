@@ -137,10 +137,9 @@ Computes musical metrics:
         ```
 
 4. **Install dependencies**:    
-    > [!IMPORTANT]
-    > Especially when using CUDA, ensure that the PyTorch installation step is completed by now.
-    > Otherwise the torch installation might not go as desired.
-    
+> [!IMPORTANT]
+> Especially when using CUDA, ensure that the PyTorch installation step is completed by now. Otherwise the torch installation might not go as desired.
+
    ```bash
     pip install --upgrade pip
     pip install -r requirements.txt
