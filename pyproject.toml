@@ -35,6 +35,6 @@ dependencies = [
 "Homepage" = "https://github.com/MarlonF24/sightreading_ai"
 
 [tool.setuptools.packages.find]
-# This tells the builder to look for your code in the current directory
-where = ["."]
+# This tells the builder to look for your code in the src directory
+where = ["src"]
 include = ["data_pipeline_scripts*", "tokeniser*", "model*", "constants*"]

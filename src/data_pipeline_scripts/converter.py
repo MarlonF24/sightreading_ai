@@ -15,10 +15,6 @@ class Converter():
     logging, temporary file management, and batch/single-file processing. It maintains separate directories
     for input data, temporary files, error files, and conversion logs.
 
-    Class Attributes:
-        OWN_PATH (FilePath): Absolute path to this Converter class file.
-        OWN_DIRECTORY (DirPath): Directory containing this Converter class file.
-        OWN_DIRECTORY_DIRECTORY (DirPath): Parent directory of OWN_DIRECTORY.
 
     Attributes:
         pipeline (Pipeline): The conversion pipeline defining available format transformations.
@@ -38,13 +34,9 @@ class Converter():
         >>> converter.single_stage_conversion("pdf_in", "mxl_in", overwrite=True)
         >>> converter.multi_stage_conversion("pdf_in", "tokens_in")
     """
-
-    OWN_PATH: FilePath = Path(os.path.abspath(__file__))
-    OWN_DIRECTORY: DirPath = OWN_PATH.parent
-    OWN_DIRECTORY_DIRECTORY = OWN_DIRECTORY.parent
     
     
-    def __init__(self, pipeline: Pipeline, pipeline_dir_path: DirPath = Path(fr"{OWN_DIRECTORY_DIRECTORY}")) -> None:
+    def __init__(self, pipeline: Pipeline, pipeline_dir_path: DirPath = Path(".")) -> None:
         """
         Initializes a Converter with the specified pipeline and directory structure.
 

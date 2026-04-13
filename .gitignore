@@ -13,3 +13,4 @@ tokeniser/tokenizer.json
 main.py
 to_dos.txt
 .vscode/
+*.egg-info
