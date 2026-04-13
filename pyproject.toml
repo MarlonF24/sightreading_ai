@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sightreading-ai"
+version = "0.1.0"
+description = "A machine learning pipeline for generating piano sight-reading exercises"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "MarlonF24" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Conversion",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# These are your core requirements from requirements.txt
+dependencies = [
+    "miditok==3.0.6.post1",
+    "music21==9.9.1",
+    "transformers==4.57.6",
+    "accelerate>=0.26.0",
+    "pdf2image==1.17.0",
+    "PyPDF2==3.0.1",
+    "plotext==5.3.2",
+    # We include torch here, but users will likely override 
+    # it for CUDA as per your README instructions.
+    "torch>=2.1.0", 
+]
+
+[project.urls]
+"Homepage" = "https://github.com/MarlonF24/sightreading_ai"
+
+[tool.setuptools.packages.find]
+# This tells the builder to look for your code in the current directory
+where = ["."]
+include = ["data_pipeline_scripts*", "tokeniser*", "model*", "constants*"]
