@@ -3,6 +3,7 @@ from typing import *
 # Model constants
 SEQUENCE_LENGTH_CUTOFF_PERCENTILE: float = 0.9
 
+MODEL_ROOT_DIR_NAME: str = "model"
 TRAINING_DIR_NAME: str = "training"
 LOGS_DIR_NAME: str = "logs"
 OUTPUT_DIR_NAME: str = "output"

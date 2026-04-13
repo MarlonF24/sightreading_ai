@@ -1,9 +1,9 @@
 from transformers import GPT2Config, GPT2LMHeadModel
 from pathlib import Path
-from tokeniser.tokeniser import MyTokeniser, Metadata
-from model.dataloader import MyTokenDataset
+from sightreading_ai.tokeniser.tokeniser import MyTokeniser, Metadata
+from sightreading_ai.model.dataloader import MyTokenDataset
 from typing import *
-import constants as constants
+import sightreading_ai.constants as constants
 
 
 class MyModel(GPT2LMHeadModel):
@@ -34,14 +34,9 @@ class MyModel(GPT2LMHeadModel):
         
     Example:
         >>> tokenizer = MyTokeniser()
-        >>> model, loaded = MyModel.load_or_create(tokenizer, tokens_dir)
-        >>> MyModel.train_from_tokens_dir(tokens_dir, tokenizer)
+        >>> model = MyModel.load_or_create(tokenizer, tokens_dir, model_dir_path=Path("./model"))
+        >>> model.train_from_tokens_dir(tokens_dir, tokenizer)
     """
-    
-    OWN_PATH = Path(__file__)
-    OWN_DIR = OWN_PATH.parent
-    TRAINING_DIR = OWN_DIR / constants.model_constants.TRAINING_DIR_NAME
-    OUTPUT_DIR = OWN_DIR / constants.model_constants.OUTPUT_DIR_NAME
 
     @staticmethod
     def build_config(max_sequence_length: int, tokeniser: MyTokeniser) -> GPT2Config:
@@ -69,12 +64,14 @@ class MyModel(GPT2LMHeadModel):
 
         return GPT2Config(**config)
 
-    def __init__(self, config: GPT2Config):
+    def __init__(self, config: GPT2Config, model_dir_path: Path = Path(".")):
         """
-        Initialize MyModel with the given configuration.
+        Initialize MyModel with the given configuration and directory structure.
         
         Args:
             config: GPT2Config object with model parameters
+            model_dir_path: Root directory for model operations (training, logs, outputs). 
+                Defaults to the current working directory.
             
         Raises:
             ValueError: If config.architectures doesn't match this class name
@@ -83,9 +80,12 @@ class MyModel(GPT2LMHeadModel):
             raise ValueError(f"Expected config.architectures to be {self.__class__.__name__}, got {config.architectures}")
 
         super().__init__(config)
+        self.model_dir_path = model_dir_path / constants.model_constants.MODEL_ROOT_DIR_NAME
+        self.training_dir = self.model_dir_path / constants.model_constants.TRAINING_DIR_NAME
+        self.output_dir = self.model_dir_path / constants.model_constants.OUTPUT_DIR_NAME
 
     @classmethod
-    def load_or_create(cls, tokeniser: MyTokeniser, tokens_dir: Path) -> Tuple["MyModel", bool]:
+    def load_or_create(cls, tokeniser: MyTokeniser, tokens_dir: Path, model_dir_path: Path = Path(".")) -> Tuple["MyModel", bool]:
         """
         Load existing model or create new one.
         
@@ -96,6 +96,7 @@ class MyModel(GPT2LMHeadModel):
         Args:
             tokeniser: MyTokeniser instance for compatibility checking
             tokens_dir: Directory containing training token files for analysis
+            model_dir_path: Root directory for model operations. Defaults to ".".
             
         Returns:
             Tuple of (model_instance, was_loaded_from_disk)
@@ -110,16 +111,16 @@ class MyModel(GPT2LMHeadModel):
         """
         import shutil, miditok.constants, transformers.utils
 
-        files_present = [cls.TRAINING_DIR.joinpath(transformers.utils.CONFIG_NAME).exists(),
-                cls.TRAINING_DIR.joinpath(transformers.utils.SAFE_WEIGHTS_NAME).exists(),
-                cls.TRAINING_DIR.joinpath(transformers.utils.GENERATION_CONFIG_NAME).exists(),
-                cls.TRAINING_DIR.joinpath(miditok.constants.DEFAULT_TOKENIZER_FILE_NAME).exists()]
+        training_dir = model_dir_path / constants.model_constants.MODEL_ROOT_DIR_NAME / constants.model_constants.TRAINING_DIR_NAME
+
+        files_present = [training_dir.joinpath(transformers.utils.CONFIG_NAME).exists(),
+                training_dir.joinpath(transformers.utils.SAFE_WEIGHTS_NAME).exists(),
+                training_dir.joinpath(transformers.utils.GENERATION_CONFIG_NAME).exists(),
+                training_dir.joinpath(miditok.constants.DEFAULT_TOKENIZER_FILE_NAME).exists()]
         
         if all(files_present):
             print("All required files for loading found, loading model...")
-            loaded_tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=cls.TRAINING_DIR)
-
-            loaded_tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=cls.TRAINING_DIR)
+            loaded_tokeniser = MyTokeniser.from_pretrained(pretrained_model_name_or_path=training_dir)
 
             if loaded_tokeniser.hexa_hash == tokeniser.hexa_hash:
                 print(f"✅ Tokeniser hash matches checkpoint model: {loaded_tokeniser.hexa_hash}")
@@ -147,16 +148,21 @@ class MyModel(GPT2LMHeadModel):
 
         if load:
             print("Loading model with given tokeniser...\n")
-            return cls.from_pretrained(cls.TRAINING_DIR), True
+            model = cls.from_pretrained(training_dir)
+            model.model_dir_path = model_dir_path / constants.model_constants.MODEL_ROOT_DIR_NAME
+            model.training_dir = training_dir
+            model.output_dir = model.model_dir_path / constants.model_constants.OUTPUT_DIR_NAME
+            return model, True
         else:
             print("Initialising new model with given tokeniser.")
-            shutil.rmtree(cls.TRAINING_DIR, ignore_errors=True)
+            shutil.rmtree(training_dir, ignore_errors=True)
 
-            cls.TRAINING_DIR.mkdir(parents=True, exist_ok=False)
+            training_dir.mkdir(parents=True, exist_ok=True)
 
             max_sequence_length = cls.analyse_sequence_lengths_for_cutoff(tokens_dir, constants.model_constants.SEQUENCE_LENGTH_CUTOFF_PERCENTILE)
 
-            return cls(cls.build_config(max_sequence_length + 2, tokeniser)), False  # +2 for BOS/EOS tokens
+            model = cls(cls.build_config(max_sequence_length + 2, tokeniser), model_dir_path=model_dir_path)
+            return model, False  # +2 for BOS/EOS tokens
 
     @staticmethod
     def analyse_sequence_lengths_for_cutoff(tokens_dir: Path, target_percentile: float) -> int:
@@ -256,51 +262,9 @@ class MyModel(GPT2LMHeadModel):
         
         return selected_max_length
 
-    # deprecated: gotta fix before reusing
-    @classmethod
-    def find_optimal_batch_size_for_model(cls, model: "MyModel", target_memory_mb: int = 1200) -> int:
-        """
-        Find optimal batch size for the given model and memory constraints.
-        
-        **DEPRECATED**: Needs fixing before reuse.
-        
-        Estimates memory usage for different batch sizes and finds the largest
-        batch size that fits within the target memory limit.
-        
-        Args:
-            model: The loaded model to analyze
-            target_memory_mb: Target memory usage in MB (default 1200 for RTX 3050 Ti)
-            
-        Returns:
-            Optimal batch size that fits within memory constraints
-            
-        Note:
-            Memory estimates include model parameters, gradients, optimizer states,
-            and activation memory for forward/backward passes.
-        """
-        # Get values directly from model config
-        sequence_length = model.config.n_positions
-        vocab_size = model.config.vocab_size
-        n_embd = model.config.n_embd
-        n_layer = model.config.n_layer
-
-        # Find largest batch size that fits
-        for batch_size in range(1, 33):
-            # Quick memory estimate
-            model_params_mb = (vocab_size * n_embd * 4 + sequence_length * n_embd * 4 + n_embd * n_embd * 4 * 12 * n_layer) / (1024**2)
-            activations_mb = (batch_size * sequence_length * n_embd * 4 * 4 + batch_size * sequence_length * sequence_length * 4) / (1024**2)
-            total_mb = model_params_mb * 4 + activations_mb  # 4x for params + gradients + optimizer
-            
-            if total_mb > target_memory_mb:
-                optimal = max(1, batch_size - 1)
-                print(f"🎯 Optimal batch size: {optimal}")
-                return optimal
-        
-        print(f"🎯 Optimal batch size: 32 (max tested)")
-        return 32
 
     @classmethod  
-    def train_from_tokens_dir(cls, tokens_dir: Path, tokeniser: MyTokeniser):
+    def train_from_tokens_dir(self, tokens_dir: Path, tokeniser: MyTokeniser):
         """
         Train model on tokenized music files using Hugging Face Trainer.
         
@@ -313,7 +277,7 @@ class MyModel(GPT2LMHeadModel):
             tokeniser: MyTokeniser instance identical to the one used for tokenisation (hash based check)
             
         Side Effects:
-            - Creates/updates model in TRAINING_DIR
+            - Creates/updates model in training_dir
             - Saves model and tokenizer after training
             - Prints GPU information and training progress
             - Creates training logs in the specified directory
@@ -326,15 +290,12 @@ class MyModel(GPT2LMHeadModel):
         import torch
         from transformers import Trainer, TrainingArguments
         
-        cls.TRAINING_DIR.mkdir(parents=True, exist_ok=True)
+        self.training_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load or create model
-        model, loaded = cls.load_or_create(tokeniser, tokens_dir=tokens_dir)
-        
         # Move model to GPU
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            model = model.to(device)
+            self.to(device)
             print(f"✅ Model moved to: {device}")
             gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3) # convert to GB
             print(f"📱 GPU Memory: {gpu_memory_gb:.1f} GB")
@@ -346,7 +307,7 @@ class MyModel(GPT2LMHeadModel):
         dataset = MyTokenDataset(
             files_paths=list(tokens_dir.glob(f"*{constants.TOKENS_EXTENSION}")),
             tokeniser=tokeniser,
-            max_sequence_length=model.config.n_positions, 
+            max_sequence_length=self.config.n_positions, 
             bos_token_id=tokeniser.vocab[tokeniser.bos_token],
             eos_token_id=tokeniser.vocab[tokeniser.eos_token],
             pad_token_id=tokeniser.vocab[tokeniser.pad_token]
@@ -365,47 +326,47 @@ class MyModel(GPT2LMHeadModel):
         )
         
         training_args = TrainingArguments(
-            output_dir=str(cls.TRAINING_DIR),
+            output_dir=str(self.training_dir),
             auto_find_batch_size=True,  
             save_strategy="epoch",
-            logging_dir=str(cls.TRAINING_DIR / constants.model_constants.LOGS_DIR_NAME),
+            logging_dir=str(self.training_dir / constants.model_constants.LOGS_DIR_NAME),
             save_total_limit=3,
         )
 
         trainer = Trainer(
-            model=model,
+            model=self,
             args=training_args,
             train_dataset=dataset,
             data_collator=collator,
         )
 
         trainer.train()
-        trainer.model.save_pretrained(cls.TRAINING_DIR)
-        if not loaded:
-            tokeniser.save_pretrained(cls.TRAINING_DIR)
+        self.save_pretrained(self.training_dir)
+        tokeniser.save_pretrained(self.training_dir)
 
     
 
     @classmethod
-    def generate_tokens(cls, metadata_tokens: Metadata.TokenisedMetadata, key_signature: int, output_dir: Path):
+    def generate_tokens(self, metadata_tokens: Metadata.TokenisedMetadata, key_signature: int, output_dir: Path | None = None):
         """
         Generate music token sequences conditioned on metadata and key signature.
         
-        Loads trained model and generates new music sequences based on the provided
+        Uses the trained model instance to generate new music sequences based on the provided
         metadata conditioning tokens (complexity, structure) and target key signature.
-        The generated tokens are saved as JSON files for further processing.
+        The generated tokens are saved as JSON files.
         
         Args:
             metadata_tokens: Tokenized metadata for conditioning generation
             key_signature: Target key signature (-7 to 7 sharps/flats)
-            output_dir: Directory where generated token files will be saved
+            output_dir: Directory where generated token files will be saved. 
+                Defaults to self.output_dir.
             
         Raises:
             ValueError: If key_signature is outside valid range (-7 to 7)
             ValueError: If metadata tokens are invalid for the loaded tokenizer
             
         Note:
-            - Requires trained model and tokenizer in TRAINING_DIR
+            - Uses the current model instance and its associated training directory for the tokenizer
             - Uses greedy decoding by default (custom generation config commented)
             - Generated sequences include BOS token and metadata conditioning
             - Output files contain tokens, IDs, key signature, and metadata
@@ -414,24 +375,25 @@ class MyModel(GPT2LMHeadModel):
             raise ValueError(f"Invalid key signature: {key_signature}. Valid range is -7 to 7 sharps.")
 
         import torch
+        if output_dir is None:
+            output_dir = self.output_dir
+            
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load tokeniser and model
-        tokeniser = MyTokeniser.from_pretrained(cls.TRAINING_DIR)
+        # Load tokeniser from the same training dir the model belongs to
+        tokeniser = MyTokeniser.from_pretrained(self.training_dir)
 
         t, err = tokeniser.valid_metadata(metadata_tokens)
         if not t:
             raise ValueError(f"Invalid metadata tokens: {err}")
 
-        model = cls.from_pretrained(cls.TRAINING_DIR)
-        model.eval()
+        self.eval()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
+        self.to(device)
 
         tok_seq = tokeniser.encode_metadata(metadata_tokens)
 
         input_ids = torch.tensor([[tokeniser.vocab[tokeniser.bos_token]] + tok_seq.ids], dtype=torch.long).to(device)
-
 
         # custom_gen_config = model.generation_config
         # custom_gen_config.update(
@@ -444,18 +406,17 @@ class MyModel(GPT2LMHeadModel):
         # )
 
 
-        # Generate
         with torch.no_grad():
-            generated = model.generate(input_ids)
+            generated = self.generate(input_ids)
 
-
-        # Decode back to tokens
         output_ids = generated[0].tolist()
 
         tokeniser.save_generated_tokens(output_dir / f"generated{constants.TOKENS_EXTENSION}", output_ids, key_signature, metadata_tokens)
 
 
 if __name__ == "__main__":
-    tokens_dir = Path("C:/Users/marlo/sightreading_ai/data_pipeline/data/tokens") 
+    tokens_dir = Path("data/tokens") 
     
-    MyModel.train_from_tokens_dir(tokens_dir, MyTokeniser())
+    tokenizer = MyTokeniser()
+    model, loaded = MyModel.load_or_create(tokenizer, tokens_dir, model_dir_path=Path("."))
+    model.train_from_tokens_dir(tokens_dir, tokenizer)

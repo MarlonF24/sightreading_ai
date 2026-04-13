@@ -1,4 +1,4 @@
-import music21, miditok, constants as constants, math
+import music21, miditok, sightreading_ai.constants as constants, math
 import music21.meter.base
 from typing import *
 from functools import cached_property, wraps

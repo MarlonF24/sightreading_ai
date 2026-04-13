@@ -1,11 +1,11 @@
 from __future__ import annotations
-import data_pipeline_scripts.conversion_functions as conversion_functions, constants as constants
+import sightreading_ai.data_pipeline_scripts.conversion_functions as conversion_functions, sightreading_ai.constants as constants
 from dataclasses import dataclass
 from typing import *
 from pathlib import Path
-from data_pipeline_scripts.conversion_func_infrastructure import *
-from data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
-from tokeniser.tokeniser import MyTokeniser
+from sightreading_ai.data_pipeline_scripts.conversion_func_infrastructure import *
+from sightreading_ai.data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
+from sightreading_ai.tokeniser.tokeniser import MyTokeniser
 
 @dataclass(unsafe_hash=False)
 class PipelineStage():
