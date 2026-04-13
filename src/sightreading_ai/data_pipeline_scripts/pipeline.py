@@ -1,11 +1,11 @@
 from __future__ import annotations
-import data_pipeline_scripts.conversion_functions as conversion_functions, constants as constants
+import sightreading_ai.data_pipeline_scripts.conversion_functions as conversion_functions, sightreading_ai.constants as constants
 from dataclasses import dataclass
 from typing import *
 from pathlib import Path
-from data_pipeline_scripts.conversion_func_infrastructure import *
-from data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
-from tokeniser.tokeniser import MyTokeniser
+from sightreading_ai.data_pipeline_scripts.conversion_func_infrastructure import *
+from sightreading_ai.data_pipeline_scripts.conversion_func_infrastructure import _ConversionFunction
+from sightreading_ai.tokeniser.tokeniser import MyTokeniser
 
 @dataclass(unsafe_hash=False)
 class PipelineStage():
@@ -362,7 +362,8 @@ class Pipeline():
 
 def construct_music_pipeline(tokeniser: MyTokeniser, 
                             pdf_preprocess: bool = False, 
-                            musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe'
+                            audiveris_app_dir: str = r'C:\Program Files\Audiveris\app',
+                            # musescore_path: str = r'C:\Program Files\MuseScore 4\bin\MuseScore4.exe',
                             ) -> Pipeline:
     """
     Constructs a complete music file processing pipeline.
@@ -421,9 +422,9 @@ def construct_music_pipeline(tokeniser: MyTokeniser,
 
 
     if pdf_preprocess:
-        pdf_preprocessed = PipelineStage("pdf_preprocessed", constants.PDF_EXTENSION, children={mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(constants.data_pipeline_constants.AUDIVERIS_APP_DIR))})
+        pdf_preprocessed = PipelineStage("pdf_preprocessed", constants.PDF_EXTENSION, children={mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
 
-    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(constants.data_pipeline_constants.AUDIVERIS_APP_DIR))})
+    pdf_in = PipelineStage("pdf_in", constants.PDF_EXTENSION, {mxl_in: conversion_functions.pdf_to_mxl(audiveris_app_dir=Path(audiveris_app_dir))})
 
     pipeline = Pipeline(mxl_out, midi_out, tokens_out, tokens_in, midi_in, mxl_in, pdf_in, midi_start)
 

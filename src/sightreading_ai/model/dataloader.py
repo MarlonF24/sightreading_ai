@@ -2,8 +2,8 @@ from torch import LongTensor
 from torch.utils.data import Dataset
 from pathlib import Path
 from typing import *
-from tokeniser.tokeniser import MyTokeniser
-import json, constants as constants
+from sightreading_ai.tokeniser.tokeniser import MyTokeniser
+import json, sightreading_ai.constants as constants
 
 class MyTokenDataset(Dataset):
     """

@@ -1,4 +1,4 @@
-import model.model_constants as model_constants, tokeniser.tokeniser_constants as tokeniser_constants, data_pipeline_scripts.data_pipeline_constants as data_pipeline_constants
+import sightreading_ai.model.model_constants as model_constants, sightreading_ai.tokeniser.tokeniser_constants as tokeniser_constants, sightreading_ai.data_pipeline_scripts.data_pipeline_constants as data_pipeline_constants
 
 # File extensions
 MIDI_EXTENSION: str = ".midi"

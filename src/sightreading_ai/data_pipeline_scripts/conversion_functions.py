@@ -1,10 +1,9 @@
 from typing import *
 from pathlib import Path
 from pyparsing import cached_property
-from data_pipeline_scripts.conversion_func_infrastructure import *
-from tokeniser.tokeniser import MyTokeniser, Metadata
-import constants 
-       
+from sightreading_ai.data_pipeline_scripts.conversion_func_infrastructure import *
+from sightreading_ai.tokeniser.tokeniser import MyTokeniser, Metadata
+import sightreading_ai.constants as constants       
 class Generics:
     """
     A utility class containing generic methods used in the data pipeline scripts.
@@ -866,7 +865,7 @@ class to_midi(SingleFileConversionFunction):
         Returns:
             List[FilePath]: A list of paths to the generated MIDI files.
         """
-        from tokeniser.tokeniser import Metadata
+        from sightreading_ai.tokeniser.tokeniser import Metadata
         import music21, json, warnings
 
         metadata_dir: DirPath = output_dir / constants.data_pipeline_constants.METADATA_DIR_NAME

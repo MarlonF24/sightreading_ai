@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sightreading-ai"
-version = "0.1.0"
+version = "0.1.2"
 description = "A machine learning pipeline for generating piano sight-reading exercises"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,6 +35,6 @@ dependencies = [
 "Homepage" = "https://github.com/MarlonF24/sightreading_ai"
 
 [tool.setuptools.packages.find]
-# This tells the builder to look for your code in the current directory
-where = ["."]
-include = ["data_pipeline_scripts*", "tokeniser*", "model*", "constants*"]
+# This tells the builder to look for your code in the src directory
+where = ["src"]
+include = ["sightreading_ai*"]

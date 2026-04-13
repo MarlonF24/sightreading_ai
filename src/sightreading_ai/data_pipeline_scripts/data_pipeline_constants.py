@@ -7,6 +7,3 @@ CONVERTER_ERROR_TEMP_DIR_NAME: str = "error_temp"
 
 # conversion functions constants
 METADATA_DIR_NAME: str = "metadata_files"
-
-# Make sure to have the correct path to the Audiveris /app here
-AUDIVERIS_APP_DIR: str = r"C:\Program Files\Audiveris\app"
